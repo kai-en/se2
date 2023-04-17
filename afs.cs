@@ -530,8 +530,16 @@ namespace kradar_p
                 blocks[i].GetActionWithName(action).Apply(blocks[i]);
             }
         }
+
+        string display3D(Vector3D v)
+        {
+            return string.Join(",", new List<double>() { v.X, v.Y, v.Z }.Select(d => Math.Round(d, 2) + ""));
+        }
         void parseRadar(string arguments)
         {
+            debug("standby: " + isStandBy);
+            debug("mother: " + display3D(motherPosition));
+            if (arguments == null) return;
             String[] kv = arguments.Split(':');
             String[] args;
 
@@ -550,7 +558,6 @@ namespace kradar_p
                     avoidLifeTimeMap.Remove(item.Key);
                 }
             }
-
             if (!kv[0].Equals(sonCode)) return;
 
             args = kv[1].Split(',');
@@ -630,7 +637,6 @@ namespace kradar_p
             }
             */
             if (args.Count() < 19) return;
-
             lastMotherSignalTime = tickGet();
             motherMatrixD = new MatrixD(Convert.ToDouble(args[0]), Convert.ToDouble(args[1]), Convert.ToDouble(args[2]), Convert.ToDouble(args[3]),
             Convert.ToDouble(args[4]), Convert.ToDouble(args[5]), Convert.ToDouble(args[6]), Convert.ToDouble(args[7]),

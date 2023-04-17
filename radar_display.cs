@@ -111,7 +111,7 @@ Vector3D MePosition = new Vector3D();
 IMyShipController msc;
 bool inited = false;
 string SON_CODE = "2ndUsagi";
-string DCS_NAME = "dcs";
+string DCS_NAME = "afs";
 IMyProgrammableBlock dcsComputer = null;
 IMyProgrammableBlock fcsComputer = null;
 string FCS_NAME = "fcs";
