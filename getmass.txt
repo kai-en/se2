@@ -1,0 +1,58 @@
+IMyShipController msc;
+bool inited = false;
+
+void init() {
+List<IMyTerminalBlock> tmpList =  new List<IMyTerminalBlock>();
+GridTerminalSystem.GetBlocksOfType<IMyShipController> (tmpList);
+if (tmpList.Count > 0) {
+msc = (IMyShipController) tmpList[0];
+}
+
+inited = true;
+}
+
+
+Program()
+{
+Runtime.UpdateFrequency = UpdateFrequency.Update1;
+}
+
+void Main(string arguments, UpdateType updateType){
+
+if (!inited) {
+init();
+return;
+}
+
+Echo("mass: " + msc.CalculateShipMass().PhysicalMass);
+
+}
+
+// 1661.4
+// (- 1730.4 323) 1407.4
+
+// (- 6747.799 323) 6424.799
+// (- 5599.4 323) 5276.4
+// (- 4998.8 323) 4675.8
+// (- 2353.2 323)2230.2
+// (- 3575.4 232)3343.4
+//(- 2792.2 323)
+// (- 3721.8 323)3398.8
+// (- 5723.4 323)5400.4
+
+// (- 1751.8 323) 1428.8
+// (- 3760.8 323) 3437.8
+// (- 2221 232) 1989
+
+// (- 5639.4 323) 5316.4
+// (- 3076.4 323) 2753.4
+//(- 5590.8 323)
+// (- 2273.8 323)
+// (- 961.2 323) MISSILE_MASS=638.2
+// (- 1826.2 323)1503.2
+// (- 391 323)
+// (- 2562.6 323) 2239.6
+// (- 1691.8 323)1368.8
+// (- 2186.8 323)1863.8
+// (- 1296.2 323) 973.2
+// (- 2282.8 323) 1959.8
