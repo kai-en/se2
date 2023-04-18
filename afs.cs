@@ -40,6 +40,9 @@ namespace kradar_p
             debug("ab: " + autoBalance + " ad: " + autoDown);
 
             if (!isStandBy) {
+              // calcFollowNA
+              calcFollowNA();
+
               // turn level 1
               balanceGravity();
 
@@ -87,6 +90,7 @@ namespace kradar_p
         #region checkship
         IMyShipController mainShipCtrl;
         Vector3D shipVelLocal = Vector3D.Zero;
+        Vector3D shipPosition = Vector3D.Zero;
         MatrixD shipRevertMat;
         List<List<List<IMyThrust>>> shipThrusts = new List<List<List<IMyThrust>>>();
         List<IMyGyro> shipGyros = new List<IMyGyro>();
@@ -107,6 +111,7 @@ namespace kradar_p
             Vector3D sv = mainShipCtrl.GetShipVelocities().LinearVelocity;
             shipRevertMat = MatrixD.CreateLookAt(new Vector3D(), mainShipCtrl.WorldMatrix.Forward, mainShipCtrl.WorldMatrix.Up);
             shipVelLocal = Vector3D.TransformNormal(sv, shipRevertMat);
+            shipPosition = mainShipCtrl.GetPosition();
 
             pGravity = Vector3D.TransformNormal(mainShipCtrl.GetNaturalGravity(), shipRevertMat);
             shipMaxForce = 0;
@@ -364,6 +369,7 @@ namespace kradar_p
         bool autoBalance = false;
         long downStart = 0;
         bool autoDown = false;
+        bool autoFollow = false;
         bool needBalance = false;
         void decideMode()
         {
@@ -376,6 +382,12 @@ namespace kradar_p
             if (moveInput.Y > 0.5) autoDown = false;
             if (Math.Abs(angleInput.Z) > 0.5) autoDown = false;
 
+            // follow mode
+            if(cmdFollow) {
+                autoBalance = false;
+                autoDown = false;
+                autoFollow = true;
+            }
             needBalance = autoBalance || autoDown;
         }
         void shortClick(ref long si, double inp, bool isP, double tl, double dl, ref bool mode)
@@ -440,6 +452,13 @@ namespace kradar_p
                 
                 SetGyroPitch(fbAngle * 0.15);
                 needRYP[2] = true;
+            }
+
+            // follow mode
+            if (autoFollow) {
+                // TODO yaw
+                // TODO pitch
+                // TODO roll
             }
 
             if (!needRYP[0]) SetGyroRoll(angleInput.Z * 0.1);
@@ -537,6 +556,9 @@ namespace kradar_p
         {
             return string.Join(",", new List<double>() { v.X, v.Y, v.Z }.Select(d => Math.Round(d, 2) + ""));
         }
+
+        bool cmdFollow;
+        bool cmdDock;
         void parseRadar(string arguments)
         {
             debug("standby: " + isStandBy);
@@ -582,63 +604,60 @@ namespace kradar_p
             }
             if (isStandBy) return;
 
-            // TODO command
-            /*
+
             switch (args[0])
             {
                 case "FLYBYON":
                     if (motherPosition == Vector3D.Zero) break;
-                    commandCache = "FLYBYON";
-                    commandStart = t;
+                    cmdFollow = true;
                     break;
-                case "DOCKINGON":
-                    if (motherPosition == Vector3D.Zero) break;
-                    commandCache = "DOCKINGON";
-                    commandStart = t;
-                    break;
-                case ("LOADMISSILEON"):
-                    //TODO
-                    break;
-                case "ATTACKON":
-                    if (flyByOn)
-                    {
-                        attackMode = true;
-                    }
-                    break;
-                case "ATTACKOFF":
-                    if (flyByOn)
-                    {
-                        attackMode = false;
-                    }
-                    break;
-                case "WEAPON1":
-                    callComputer(fighterFcs, "WEAPON1");
-                    break;
-                case "WEAPON2":
-                    callComputer(fighterFcs, "WEAPON2");
-                    break;
-                case "VFTUP":
-                    VFTransformNew(true);
-                    break;
-                case "VFTDOWN":
-                    VFTransformNew(false);
-                    break;
-                case "DKMVF7":
-                    dockMove(18);
-                    break;
-                case "DKMVF6":
-                    dockMove(16.25);
-                    break;
-                case "DKMVF5":
-                    dockMove(12.5);
-                    break;
-                case "DKMVB5":
-                    dockMove(-12.5);
-                    break;
+                // case "DOCKINGON":
+                //     if (motherPosition == Vector3D.Zero) break;
+                //     commandCache = "DOCKINGON";
+                //     commandStart = t;
+                //     break;
+                // case ("LOADMISSILEON"):
+                //     //TODO
+                //     break;
+                // case "ATTACKON":
+                //     if (flyByOn)
+                //     {
+                //         attackMode = true;
+                //     }
+                //     break;
+                // case "ATTACKOFF":
+                //     if (flyByOn)
+                //     {
+                //         attackMode = false;
+                //     }
+                //     break;
+                // case "WEAPON1":
+                //     callComputer(fighterFcs, "WEAPON1");
+                //     break;
+                // case "WEAPON2":
+                //     callComputer(fighterFcs, "WEAPON2");
+                //     break;
+                // case "VFTUP":
+                //     VFTransformNew(true);
+                //     break;
+                // case "VFTDOWN":
+                //     VFTransformNew(false);
+                //     break;
+                // case "DKMVF7":
+                //     dockMove(18);
+                //     break;
+                // case "DKMVF6":
+                //     dockMove(16.25);
+                //     break;
+                // case "DKMVF5":
+                //     dockMove(12.5);
+                //     break;
+                // case "DKMVB5":
+                //     dockMove(-12.5);
+                //     break;
                 default:
                     break;
             }
-            */
             if (args.Count() < 19) return;
             lastMotherSignalTime = tickGet();
             motherMatrixD = new MatrixD(Convert.ToDouble(args[0]), Convert.ToDouble(args[1]), Convert.ToDouble(args[2]), Convert.ToDouble(args[3]),
@@ -748,6 +767,21 @@ namespace kradar_p
         }
 
         #endregion parserader
+
+        #region calcFollowNA
+        void calcFollowNA() {
+            Vector3D pd = motherPosition - shipPosition;
+            Vector3D nv = motherVelocity + pd * 0.1;
+            Vector3D naLocal = (Vector3D.TransformNormal(nv, shipRevertMat) - shipVelLocalGet()) * 0.1;
+            double ma = shipMaxForce / shipMass;
+            double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
+            if (naLocal.Length() > sideALimit) naLocal *= sideALimit/naLocal.Length();
+            naLocal -= pGravity;
+
+            // avoid TODO
+
+        }
+        #endregion calcFollowNA
 
         #endregion ingamescript
 
