@@ -776,9 +776,11 @@ namespace kradar_p
             double ma = shipMaxForce / shipMass;
             double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
             if (naLocal.Length() > sideALimit) naLocal *= sideALimit/naLocal.Length();
-            naLocal -= pGravity;
 
             // avoid TODO
+
+            // reject forward thrust
+            naLocal -= pGravity;
 
         }
         #endregion calcFollowNA
