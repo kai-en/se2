@@ -1,11 +1,10 @@
-﻿using Sandbox.ModAPI.Ingame;
+using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using VRage.Game;
 using VRage.Game.ModAPI.Ingame;
 using VRageMath;
@@ -39,15 +38,18 @@ namespace kradar_p
             // decide mode
             decideMode();
             debug("ab: " + autoBalance + " ad: " + autoDown);
-            // turn level 1
-            balanceGravity();
 
-            // adjust thrust level 1
-            controlThrust();
+            if (!isStandBy) {
+              // turn level 1
+              balanceGravity();
 
-            // turn level 2
+              // adjust thrust level 1
+              controlThrust();
 
-            // adjust thrust level 2
+              // turn level 2
+
+              // adjust thrust level 2
+            }
 
             debugShow();
         }
@@ -574,6 +576,7 @@ namespace kradar_p
                 case "STANDBYOFF":
                     isStandBy = false;
                     autoDown = false;
+                    setDampenersOverride(mainShipCtrl, true);
                     shipThrusts[0].ForEach(l => l.ForEach(t => t.Enabled = true));
                     break;
             }
