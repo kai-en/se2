@@ -37,7 +37,7 @@ namespace kradar_p
 
             // decide mode
             decideMode();
-            debug("ab: " + autoBalance + " ad: " + autoDown);
+            debug("ab: " + autoBalance + " ad: " + autoDown + " af: " + autoFollow);
 
             if (!isStandBy) {
               // calcFollowNA
@@ -92,6 +92,7 @@ namespace kradar_p
         Vector3D shipVel = Vector3D.Zero;
         Vector3D shipVelLocal = Vector3D.Zero;
         Vector3D shipPosition = Vector3D.Zero;
+        MatrixD shipMatrix;
         MatrixD shipRevertMat;
         List<List<List<IMyThrust>>> shipThrusts = new List<List<List<IMyThrust>>>();
         List<IMyGyro> shipGyros = new List<IMyGyro>();
@@ -114,6 +115,7 @@ namespace kradar_p
             shipRevertMat = MatrixD.CreateLookAt(new Vector3D(), mainShipCtrl.WorldMatrix.Forward, mainShipCtrl.WorldMatrix.Up);
             shipVelLocal = Vector3D.TransformNormal(shipVel, shipRevertMat);
             shipPosition = mainShipCtrl.GetPosition();
+            shipMatrix = mainShipCtrl.WorldMatrix;
 
             pGravity = mainShipCtrl.GetNaturalGravity();
             pGravityLocal = Vector3D.TransformNormal(pGravity, shipRevertMat);
@@ -394,6 +396,12 @@ namespace kradar_p
                 autoBalance = false;
                 autoDown = false;
                 autoFollow = true;
+                cmdFollow = false;
+            }
+            if (cmdControl) {
+                autoFollow = false;
+                autoDown = false;
+                cmdControl = false;
             }
             needBalance = autoBalance || autoDown;
         }
@@ -442,8 +450,9 @@ namespace kradar_p
 
                 double lrAngle = Math.Atan2(-graNoFB.Y, -graNoFB.X + nv) - Math.PI * 0.5;
                 lrAngle = -lrAngle * 1 ;
+                double cRoll = Math.Atan2(pGravityLocal.Y, pGravityLocal.X) + Math.PI * 0.5;
 
-                SetGyroRoll(lrAngle * -0.15);
+                SetGyroRoll((lrAngle - cRoll) * -0.15);
                 needRYP[0] = true;
             }
 
@@ -455,20 +464,46 @@ namespace kradar_p
                 nv = utilMyClamp(nv, sideALimit);
                 double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z + nv) - Math.PI * 0.5;
                 fbAngle = -fbAngle * 1 ;
+                double cPitch = Math.Atan2(pGravityLocal.Y, pGravityLocal.Z) + Math.PI * 0.5;
                 debug("fb: " + fbAngle);
                 
-                SetGyroPitch(fbAngle * 0.15);
+                SetGyroPitch((fbAngle - cPitch) * 0.15);
                 needRYP[2] = true;
             }
 
             // follow mode
             if (autoFollow) {
-                // TODO yaw
-                // TODO pitch
-                // TODO roll
+                // yaw
+                var motherPoint = Vector3D.TransformNormal(motherMatrixD.Forward, shipRevertMat);
+                var angle = Math.Atan2(motherPoint.Z, motherPoint.X);
+                angle = Math.PI * 0.5 + angle;
+                SetGyroYaw(angle);
+                needRYP[1] = true;
+
+                // pitch
+                Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
+                double nv = naL1MainLocal.Z * -0.5;
+                double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z + nv) - Math.PI * 0.5;
+                fbAngle = fbAngle * 1;
+                double cPitch = Math.Atan2(pGravityLocal.Y, pGravityLocal.Z) + Math.PI * 0.5;
+                
+                SetGyroPitch((fbAngle - cPitch) * 0.3);
+                needRYP[2] = true;
+
+                // roll
+                Vector3D graNoFB = Vector3D.Reject(pGravityLocal, new Vector3D(0, 0, 1));
+                nv = naL1MainLocal.X * -0.5;
+                nv = utilMyClamp(nv, sideALimit);
+
+                double lrAngle = Math.Atan2(-graNoFB.Y, -graNoFB.X + nv) - Math.PI * 0.5;
+                lrAngle = lrAngle * 1 ;
+                double cRoll = Math.Atan2(pGravityLocal.Y, pGravityLocal.X) + Math.PI * 0.5;
+
+                SetGyroRoll((lrAngle-cRoll) * -0.3);
+                needRYP[0] = true;
             }
 
-            if (!needRYP[0]) SetGyroRoll(angleInput.Z * 0.1);
+            if (!needRYP[0]) SetGyroRoll(angleInput.Z * -0.1);
             if (!needRYP[1]) SetGyroYaw(angleInput.Y * 0.1);
             if (!needRYP[2]) SetGyroPitch(angleInput.X * -0.1);
             if (needRYP.Any(b => b)) SetGyroOverride(true);
@@ -566,12 +601,21 @@ namespace kradar_p
 
         bool cmdFollow;
         bool cmdDock;
+        bool cmdControl;
         void parseRadar(string arguments)
         {
             debug("standby: " + isStandBy);
             debug("mother: " + display3D(motherPosition));
             if (arguments == null) return;
             String[] kv = arguments.Split(':');
+            if (kv.Length == 1) {
+                switch(arguments) {
+                    case "CONTROL":
+                        cmdControl = true;
+                    break;
+                }
+                return;
+            }
             String[] args;
 
             if (kv[0].Equals(sonCode + "-AVOID"))
@@ -776,7 +820,10 @@ namespace kradar_p
         #endregion parserader
 
         #region calcFollowNA
+        Vector3D naL1MainLocal;
+        Vector3D naL1BackLocal;
         void calcFollowNA() {
+            if (!autoFollow && !autoDown) return;
             Vector3D pd = motherPosition - shipPosition;
             Vector3D nv = motherVelocity + pd * 0.1;
             Vector3D na = (nv - shipVelGet()) * 0.1;
@@ -784,16 +831,34 @@ namespace kradar_p
             double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
             if (na.Length() > sideALimit) na *= sideALimit/na.Length();
 
-            // avoid TODO
+            // avoid 
+            foreach(var a in avoidMap) {
+                var tpd = shipPosition - a.Value;
+                if (tpd.Length() >= 50) continue;
+                var al = MathHelper.Clamp(50 - tpd.Length(), 0, 10) * 10;
+                var aa = tpd / tpd.Length() * al;
+                na += aa;
+            }
 
             // calc plane need (reject gravity dir)
+            var pgn = Vector3D.Normalize(pGravity);
+            var planeNeed = Vector3D.Reject(na, pgn);
+            var ba = Vector3D.Zero;
 
             // calc plan z need, reject and calc z-, z- use forward thruster. because z- means forward is bind to plane and z- will match forward thrust
+            if (Vector3D.Dot(planeNeed, shipMatrix.Forward) > 0) {
+                var pbn = Vector3D.Normalize(Vector3D.Reject(shipMatrix.Backward, pgn));
+                var nna = Vector3D.Reject(na, pbn);
+                ba = na - nna;
+                na = na - ba;
+            }
             
             na -= pGravity;
 
-            Vector3D naL1MainLocal = Vector3D.TransformNormal(na, shipRevertMat);
-            // Vector3D naL1ForwardLocal = ??
+            naL1MainLocal = Vector3D.TransformNormal(na, shipRevertMat);
+            naL1BackLocal = Vector3D.TransformNormal(ba, shipRevertMat);
+            debug("m: " + display3D(naL1MainLocal));
+            debug("b: " + display3D(naL1BackLocal));
         }
         #endregion calcFollowNA
 
