@@ -89,6 +89,7 @@ namespace kradar_p
 
         #region checkship
         IMyShipController mainShipCtrl;
+        Vector3D shipVel = Vector3D.Zero;
         Vector3D shipVelLocal = Vector3D.Zero;
         Vector3D shipPosition = Vector3D.Zero;
         MatrixD shipRevertMat;
@@ -100,6 +101,7 @@ namespace kradar_p
         const int G_PITCH = 1;
         const int G_ROLL = 2;
         Vector3D pGravity = Vector3D.Zero;
+        Vector3D pGravityLocal = Vector3D.Zero;
         double shipMaxForce = 0;
         double shipMass = 0;
         void checkShip()
@@ -108,12 +110,13 @@ namespace kradar_p
 
             if (mainShipCtrl == null) return;
 
-            Vector3D sv = mainShipCtrl.GetShipVelocities().LinearVelocity;
+            shipVel = mainShipCtrl.GetShipVelocities().LinearVelocity;
             shipRevertMat = MatrixD.CreateLookAt(new Vector3D(), mainShipCtrl.WorldMatrix.Forward, mainShipCtrl.WorldMatrix.Up);
-            shipVelLocal = Vector3D.TransformNormal(sv, shipRevertMat);
+            shipVelLocal = Vector3D.TransformNormal(shipVel, shipRevertMat);
             shipPosition = mainShipCtrl.GetPosition();
 
-            pGravity = Vector3D.TransformNormal(mainShipCtrl.GetNaturalGravity(), shipRevertMat);
+            pGravity = mainShipCtrl.GetNaturalGravity();
+            pGravityLocal = Vector3D.TransformNormal(pGravity, shipRevertMat);
             shipMaxForce = 0;
             foreach (IMyThrust t in shipThrusts[0][T_UP])
             {
@@ -125,6 +128,10 @@ namespace kradar_p
         Vector3D shipVelLocalGet()
         {
             return shipVelLocal;
+        }
+        Vector3D shipVelGet()
+        {
+            return shipVel;
         }
         void getBlocks()
         {
@@ -427,7 +434,7 @@ namespace kradar_p
             double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length());
             if (needBalance)
             {
-                Vector3D graNoFB = Vector3D.Reject(pGravity, new Vector3D(0, 0, 1));
+                Vector3D graNoFB = Vector3D.Reject(pGravityLocal, new Vector3D(0, 0, 1));
 
                 Vector3D sv = shipVelLocalGet();
                 double nv = sv.X * -0.5;
@@ -442,7 +449,7 @@ namespace kradar_p
 
             if (autoDown)
             {
-                Vector3D graNoLR = Vector3D.Reject(pGravity, new Vector3D(1, 0, 0));
+                Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
                 Vector3D sv = shipVelLocalGet();
                 double nv = sv.Z * -0.5;
                 nv = utilMyClamp(nv, sideALimit);
@@ -496,7 +503,7 @@ namespace kradar_p
                 double vy = shipVelLocalGet().Y;
                 double vd = -1.5 - vy;
 
-                double ga = pGravity.Y;
+                double ga = pGravityLocal.Y;
                 double na = vd * 10 - ga;
 
                 double nf = shipMass * na;
@@ -772,16 +779,21 @@ namespace kradar_p
         void calcFollowNA() {
             Vector3D pd = motherPosition - shipPosition;
             Vector3D nv = motherVelocity + pd * 0.1;
-            Vector3D naLocal = (Vector3D.TransformNormal(nv, shipRevertMat) - shipVelLocalGet()) * 0.1;
+            Vector3D na = (nv - shipVelGet()) * 0.1;
             double ma = shipMaxForce / shipMass;
             double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
-            if (naLocal.Length() > sideALimit) naLocal *= sideALimit/naLocal.Length();
+            if (na.Length() > sideALimit) na *= sideALimit/na.Length();
 
             // avoid TODO
 
-            // reject forward thrust
-            naLocal -= pGravity;
+            // calc plane need (reject gravity dir)
 
+            // calc plan z need, reject and calc z-, z- use forward thruster. because z- means forward is bind to plane and z- will match forward thrust
+            
+            na -= pGravity;
+
+            Vector3D naL1MainLocal = Vector3D.TransformNormal(na, shipRevertMat);
+            // Vector3D naL1ForwardLocal = ??
         }
         #endregion calcFollowNA
 
