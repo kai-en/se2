@@ -402,6 +402,14 @@ namespace kradar_p
                 autoFollow = false;
                 autoDown = false;
                 cmdControl = false;
+                foreach(IMyThrust t in shipThrusts[0][T_FRONT]) {
+                    t.ThrustOverridePercentage = 0;
+                    t.Enabled = true;
+                }
+                foreach(IMyThrust t in shipThrusts[0][T_UP]) {
+                    t.ThrustOverridePercentage = 0;
+                    t.Enabled = true;
+                }
             }
             needBalance = autoBalance || autoDown;
         }
@@ -550,7 +558,44 @@ namespace kradar_p
                 {
                     t.ThrustOverridePercentage = (float)per;
                 }
-            } else
+            } else if (autoFollow) {
+                double dot = 0;
+                if (naL1MainLocal.Length() > 0.01)
+                    dot = Vector3D.Dot(Vector3D.Normalize(naL1MainLocal), new Vector3D(0, 1, 0));
+                var nf = shipMass * naL1MainLocal.Length();
+                debug("unf: " + nf);
+                debug("smf: " + shipMaxForce);
+                double per = 0;
+                if (shipMaxForce > 0) per = nf / shipMaxForce;
+                debug("upp: " + per);
+                per *= dot;
+                debug("upp: " + per);
+                foreach (IMyThrust t in shipThrusts[0][T_UP])
+                {
+                    t.ThrustOverridePercentage = (float)per;
+                }
+                double maxBack = 0;
+                foreach(IMyThrust t in shipThrusts[0][T_FRONT]) {
+                    maxBack += t.MaxEffectiveThrust;
+                }
+                nf = shipMass * naL1BackLocal.Length();
+                if (naL1BackLocal.Length() > 0.01)
+                    dot = Vector3D.Dot(Vector3D.Normalize(naL1BackLocal), new Vector3D(0, 0, -1));
+                per = 0;
+                if (maxBack > 0) per = nf / maxBack;
+                debug("bpp: " + per);
+                per *= dot;
+                debug("bpp: " + per);
+                foreach (IMyThrust t in shipThrusts[0][T_FRONT])
+                {
+                    if (per == 0) t.Enabled = false;
+                    else {
+                        t.Enabled = true;
+                        t.ThrustOverridePercentage = (float)per;
+                    }
+                }
+            }
+            else
             {
                 foreach (IMyThrust t in shipThrusts[0][T_UP])
                 {
@@ -605,7 +650,7 @@ namespace kradar_p
         void parseRadar(string arguments)
         {
             debug("standby: " + isStandBy);
-            debug("mother: " + display3D(motherPosition));
+            debug("mother: " + (motherPosition != Vector3D.Zero));
             if (arguments == null) return;
             String[] kv = arguments.Split(':');
             if (kv.Length == 1) {
