@@ -88,7 +88,7 @@ namespace kradar_p
         #endregion debug
 
         #region checkship
-        IMyShipController mainShipCtrl;
+        IMyShipController mainShipCtrl = null;
         Vector3D shipVel = Vector3D.Zero;
         Vector3D shipVelLocal = Vector3D.Zero;
         Vector3D shipPosition = Vector3D.Zero;
@@ -112,6 +112,7 @@ namespace kradar_p
             if (mainShipCtrl == null) return;
 
             shipVel = mainShipCtrl.GetShipVelocities().LinearVelocity;
+            debug("shipv: " + shipVel.Length());
             shipRevertMat = MatrixD.CreateLookAt(new Vector3D(), mainShipCtrl.WorldMatrix.Forward, mainShipCtrl.WorldMatrix.Up);
             shipVelLocal = Vector3D.TransformNormal(shipVel, shipRevertMat);
             shipPosition = mainShipCtrl.GetPosition();
@@ -650,7 +651,7 @@ namespace kradar_p
         void parseRadar(string arguments)
         {
             debug("standby: " + isStandBy);
-            debug("mother: " + (motherPosition != Vector3D.Zero));
+            debug("mother: " + display3D(Vector3D.TransformNormal(motherPosition - shipPosition, shipRevertMat)));
             if (arguments == null) return;
             String[] kv = arguments.Split(':');
             if (kv.Length == 1) {
@@ -870,8 +871,8 @@ namespace kradar_p
         void calcFollowNA() {
             if (!autoFollow && !autoDown) return;
             Vector3D pd = motherPosition - shipPosition;
-            Vector3D nv = motherVelocity + pd * 0.1;
-            Vector3D na = (nv - shipVelGet()) * 0.1;
+            Vector3D nv = motherVelocity + pd * 0.5;
+            Vector3D na = (nv - shipVelGet()) * 0.5;
             double ma = shipMaxForce / shipMass;
             double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
             if (na.Length() > sideALimit) na *= sideALimit/na.Length();
@@ -880,7 +881,7 @@ namespace kradar_p
             foreach(var a in avoidMap) {
                 var tpd = shipPosition - a.Value;
                 if (tpd.Length() >= 50) continue;
-                var al = MathHelper.Clamp(50 - tpd.Length(), 0, 10) * 10;
+                var al = MathHelper.Clamp(50 - tpd.Length(), 0, 10) * 2.0;
                 var aa = tpd / tpd.Length() * al;
                 na += aa;
             }
