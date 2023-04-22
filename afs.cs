@@ -463,6 +463,7 @@ namespace kradar_p
           t.ThrustOverridePercentage = 0;
           t.Enabled = true;
         }
+        shipConns.ForEach(c => c.Enabled = true);
       }
       needBalance = autoBalance || autoDown;
     }
