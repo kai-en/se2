@@ -40,6 +40,9 @@ namespace kradar_p
             debug("ab: " + autoBalance + " ad: " + autoDown + " af: " + autoFollow);
 
             if (!isStandBy) {
+              // follow position
+              followPosition();
+            
               // calcFollowNA
               calcFollowNA();
 
@@ -136,6 +139,7 @@ namespace kradar_p
         {
             return shipVel;
         }
+        CustomConfiguration cfg;
         void getBlocks()
         {
             List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
@@ -143,6 +147,8 @@ namespace kradar_p
             {
                 GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks, b => b.CubeGrid == Me.CubeGrid);
                 mainShipCtrl = (IMyShipController)matchNameOrFirst(blocks, "main");
+                cfg = new CustomConfiguration(Me);
+                cfg.Load();
             }
             if (mainShipCtrl == null) return;
 
@@ -870,7 +876,7 @@ namespace kradar_p
         Vector3D naL1BackLocal;
         void calcFollowNA() {
             if (!autoFollow && !autoDown) return;
-            Vector3D pd = motherPosition - shipPosition;
+            Vector3D pd = motherPosition + Vector3D.TransformNormal(fpList[fpIdx], shipMatrix) - shipPosition;
             Vector3D nv = motherVelocity + pd * 0.5;
             Vector3D na = (nv - shipVelGet()) * 0.5;
             double ma = shipMaxForce / shipMass;
@@ -907,6 +913,163 @@ namespace kradar_p
             debug("b: " + display3D(naL1BackLocal));
         }
         #endregion calcFollowNA
+
+        #region followPosition
+        public class CustomConfiguration
+{
+public IMyTerminalBlock configBlock;
+public Dictionary<string, string> config;
+
+public CustomConfiguration(IMyTerminalBlock block)
+{
+configBlock = block;
+config = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+}
+
+public void Load()
+{
+ParseCustomData(configBlock, config);
+}
+
+public void Save()
+{
+WriteCustomData(configBlock, config);
+}
+
+public string Get(string key, string defVal = null)
+{
+return config.GetValueOrDefault(key.Trim(), defVal);
+}
+
+public void Get(string key, ref string res)
+{
+string val;
+if (config.TryGetValue(key.Trim(), out val))
+{
+res = val;
+}
+}
+
+public void Get(string key, ref int res)
+{
+int val;
+if (int.TryParse(Get(key), out val))
+{
+res = val;
+}
+}
+
+public void Get(string key, ref float res)
+{
+float val;
+if (float.TryParse(Get(key), out val))
+{
+res = val;
+}
+}
+
+public void Get(string key, ref double res)
+{
+double val;
+if (double.TryParse(Get(key), out val))
+{
+res = val;
+}
+}
+
+public void Get(string key, ref bool res)
+{
+bool val;
+if (bool.TryParse(Get(key), out val))
+{
+res = val;
+}
+}
+public void Get(string key, ref bool? res)
+{
+bool val;
+if (bool.TryParse(Get(key), out val))
+{
+res = val;
+}
+}
+
+public void Set(string key, string value)
+{
+config[key.Trim()] = value;
+}
+
+public static void ParseCustomData(IMyTerminalBlock block, Dictionary<string, string> cfg, bool clr = true)
+{
+if (clr)
+{
+cfg.Clear();
+}
+
+string[] arr = block.CustomData.Split(new char[] {'\r','\n'}, StringSplitOptions.RemoveEmptyEntries);
+for (int i = 0; i < arr.Length; i++)
+{
+string ln = arr[i];
+string va;
+
+int p = ln.IndexOf('=');
+if (p > -1)
+{
+va = ln.Substring(p + 1);
+ln = ln.Substring(0, p);
+}
+else
+{
+va = "";
+}
+cfg[ln.Trim()] = va.Trim();
+}
+}
+
+public static void WriteCustomData(IMyTerminalBlock block, Dictionary<string, string> cfg)
+{
+StringBuilder sb = new StringBuilder(cfg.Count * 100);
+foreach (KeyValuePair<string, string> va in cfg)
+{
+sb.Append(va.Key).Append('=').Append(va.Value).Append('\n');
+}
+block.CustomData = sb.ToString();
+}
+}
+
+void parseV3L (string tmps, List<Vector3D> l) {
+string[] ps = tmps.Split(';');
+foreach (var s in ps) {
+string[] ss = s.Split(',');
+if (ss.Length < 3) continue;
+Vector3D v;
+try{
+v = new Vector3D(Convert.ToDouble(ss[0]),Convert.ToDouble(ss[1]),Convert.ToDouble(ss[2]));
+} catch {
+continue;
+}
+l.Add(v);
+}
+
+}
+        List<Vector3D> fpList = new List<Vector3D>();
+        int fpIdx = 0;
+        void followPosition() {
+            if (fpList.Count == 0) {
+                string tmps = "";
+                cfg.Get("followPositions", ref tmps);
+                parseV3L(tmps, fpList);
+                if (fpList.Count == 0) {
+                    fpList.Add(new Vector3D(0,0,0));
+                    cfg.Set("followPositions", "0,0,0");
+                    cfg.Save();
+                }
+            }
+
+            // TODO fpIdx
+        }
+
+        #endregion followPosition
 
         #endregion ingamescript
 
