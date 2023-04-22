@@ -660,6 +660,7 @@ namespace kradar_p
     Dictionary<long, long> avoidLifeTimeMap = new Dictionary<long, long>();
     bool isStandBy = true;
     Vector3D motherPosition;
+    long motherLastTime = 0;
     Vector3D motherVelocity;
     MatrixD motherMatrixD;
     long lastMotherSignalTime = 0;
@@ -699,7 +700,7 @@ namespace kradar_p
     void parseRadar(string arguments)
     {
       debug("standby: " + isStandBy);
-      debug("mother: " + display3D(Vector3D.TransformNormal(motherPosition - shipPosition, shipRevertMat)));
+      debug("mother: " + display3D(Vector3D.TransformNormal(motherPositionGet() - shipPosition, shipRevertMat)));
       if (arguments == null) return;
       String[] kv = arguments.Split(':');
       if (kv.Length == 1)
@@ -812,6 +813,7 @@ namespace kradar_p
       Convert.ToDouble(args[12]), Convert.ToDouble(args[13]), Convert.ToDouble(args[14]), Convert.ToDouble(args[15]));
 
       motherPosition = new Vector3D(motherMatrixD.M41, motherMatrixD.M42, motherMatrixD.M43);
+      motherLastTime = tickGet();
 
       MatrixD motherLookAtMatrix = MatrixD.CreateLookAt(new Vector3D(0, 0, 0), motherMatrixD.Forward, motherMatrixD.Up);
 
@@ -912,6 +914,10 @@ namespace kradar_p
       */
     }
 
+    Vector3D motherPositionGet() {
+      return motherPosition + (motherVelocity * (tickGet() - motherLastTime) / 60.0);
+    }
+
     #endregion parserader
 
     #region calcFollowNA
@@ -920,9 +926,10 @@ namespace kradar_p
     void calcFollowNA()
     {
       if (!autoFollow && !autoDown) return;
-      Vector3D pd = motherPosition + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
-      if (pd.Length() > 100) pd = pd / pd.Length() * 100;
-      Vector3D nv = motherVelocity + pd * 0.2;
+      Vector3D pd = motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
+      if (pd.Length() < 1000) pd = Vector3D.Normalize(pd) * Math.Log(pd.Length()) * 1.0;
+      else pd = Vector3D.Normalize(pd) * Math.Log(pd.Length()) * 10.0;
+      Vector3D nv = motherVelocity + pd;
       Vector3D na = (nv - shipVelGet()) * 0.5;
       double ma = shipMaxForceGet() / shipMass;
       double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
@@ -1125,13 +1132,13 @@ namespace kradar_p
 
       if (!autoFollow) return;
       if (isDocking && fpIdx < fpList.Count - 1) {
-        var diff = (shipPosition) - (motherPosition + Vector3D.TransformNormal(fpList[fpIdx], motherMatrixD));
+        var diff = (shipPosition) - (motherPositionGet() + Vector3D.TransformNormal(fpList[fpIdx], motherMatrixD));
         if (diff.Length() < 1.5) {
             fpIdx ++;
         }
       }
       if (!isDocking && fpIdx > 0) {
-        var diff = (shipPosition) - (motherPosition + Vector3D.TransformNormal(fpList[fpIdx], motherMatrixD));
+        var diff = (shipPosition) - (motherPositionGet() + Vector3D.TransformNormal(fpList[fpIdx], motherMatrixD));
         if (diff.Length() < 1.5) {
             fpIdx --;
         }
