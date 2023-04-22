@@ -42,7 +42,7 @@ namespace kradar_p
 
       // decide mode
       decideMode();
-      debug("ab: " + autoBalance + " ad: " + autoDown + " af: " + autoFollow + " do: " + fpIdx);
+      debug("ab: " + autoBalance + " ad: " + autoDown + " af: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx);
 
       if (!isStandBy)
       {
@@ -119,6 +119,7 @@ namespace kradar_p
     MatrixD shipRevertMat;
     List<List<List<IMyThrust>>> shipThrusts = new List<List<List<IMyThrust>>>();
     List<IMyGyro> shipGyros = new List<IMyGyro>();
+    List<IMyShipConnector> shipConns = new List<IMyShipConnector>();
     List<List<string>> gyroFields = new List<List<string>>();
     List<List<int>> gyroFactors = new List<List<int>>();
     const int G_YAW = 0;
@@ -185,6 +186,7 @@ namespace kradar_p
 
       if (shipThrusts.Count == 0) getThrusts();
       if (shipGyros.Count == 0) getGyros();
+      if (shipConns.Count == 0) getConns();
     }
     void getGyros()
     {
@@ -284,6 +286,9 @@ namespace kradar_p
             break;
         }
       }
+    }
+    void getConns() {
+      GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(shipConns, b => b.CubeGrid == Me.CubeGrid);
     }
     float gyroDZ = 0.01F;
     double rateAdjust(double r)
@@ -430,6 +435,8 @@ namespace kradar_p
         autoFollow = true;
         cmdFollow = false;
         isDocking = false;
+        if(fpIdx == fpList.Count - 1) fpIdx --;
+        shipConns.ForEach(c => c.Enabled = false);
       }
 
       if (cmdDock) {
@@ -438,6 +445,7 @@ namespace kradar_p
         autoFollow = true;
         cmdDock = false;
         isDocking = true;
+        shipConns.ForEach(c => c.Enabled = true);
       }
 
       if (cmdControl)
