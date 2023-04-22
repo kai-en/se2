@@ -23,11 +23,16 @@ namespace kradar_p
     {
       // start up
       Runtime.UpdateFrequency = UpdateFrequency.Update1;
-      tickPlus();
-      debugClear();
 
       // parse command
       parseRadar(arguments);
+
+      if ((updateType & UpdateType.Update1) == 0) {
+        return;
+      }
+      debugClear();
+      tickPlus();
+      if (autoFollow && tickGet() % 15 != 0) return;
 
       // check ship
       checkShip();
@@ -89,6 +94,20 @@ namespace kradar_p
       Echo("Kaien Automatic Fly System V0.1 " + runIndiStr[tickGet() / 10 % 4] + "\n");
       Echo(debugInfo);
     }
+    double[] minmax = new double[100];
+    int minmaxIdx = 0;
+    double[] reMinMax(double i) {
+      minmax[minmaxIdx] = Math.Round(i, 2);
+      minmaxIdx = (minmaxIdx + 1) % 100;
+      return new double[] {minmax.Min(), minmax.Max()};
+    }
+    string dcString;
+    void debugCondition(string info, bool condi) {
+      if (condi) dcString = info + "\n";
+      if(tickGet() % 600 == 0) dcString = "";
+      debugInfo += dcString;
+    }
+
     #endregion debug
 
     #region checkship
@@ -130,6 +149,9 @@ namespace kradar_p
         shipMaxForce += t.MaxEffectiveThrust;
       }
       shipMass = mainShipCtrl.CalculateShipMass().PhysicalMass;
+    }
+    double shipMaxForceGet() {
+      return shipMaxForce;
     }
 
     Vector3D shipVelLocalGet()
@@ -471,7 +493,7 @@ namespace kradar_p
       bool[] needRYP = new bool[] { false, false, false };
       if (mainShipCtrl == null) return;
       if (pGravity.Length() < 0.01) return;
-      double ma = shipMaxForce / shipMass;
+      double ma = shipMaxForceGet() / shipMass;
       double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length());
       if (needBalance)
       {
@@ -510,7 +532,8 @@ namespace kradar_p
         var motherPoint = Vector3D.TransformNormal(followGetForward(), shipRevertMat);
         var angle = Math.Atan2(motherPoint.Z, motherPoint.X);
         angle = Math.PI * 0.5 + angle;
-        SetGyroYaw(angle);
+        angle = utilMyClamp(angle, 0.2);
+        SetGyroYaw(angle * 0.2);
         needRYP[1] = true;
 
         // pitch
@@ -576,7 +599,9 @@ namespace kradar_p
 
         double nf = shipMass * na;
 
-        double per = nf / shipMaxForce;
+        double per = 0;
+        if (shipMaxForceGet() > 0)
+          per = nf / shipMaxForceGet();
 
         foreach (IMyThrust t in shipThrusts[0][T_UP])
         {
@@ -590,8 +615,10 @@ namespace kradar_p
           dot = Vector3D.Dot(Vector3D.Normalize(naL1MainLocal), new Vector3D(0, 1, 0));
         var nf = shipMass * naL1MainLocal.Length();
         double per = 0;
-        if (shipMaxForce > 0) per = nf / shipMaxForce;
+        if (shipMaxForceGet() > 0) per = nf / shipMaxForceGet();
         per *= dot;
+        var mmm = reMinMax(shipMaxForceGet());
+        debug("shipMaxForce: " + mmm[0] + " " + mmm[1]);
         foreach (IMyThrust t in shipThrusts[0][T_UP])
         {
           t.ThrustOverridePercentage = (float)per;
@@ -897,7 +924,7 @@ namespace kradar_p
       if (pd.Length() > 100) pd = pd / pd.Length() * 100;
       Vector3D nv = motherVelocity + pd * 0.2;
       Vector3D na = (nv - shipVelGet()) * 0.5;
-      double ma = shipMaxForce / shipMass;
+      double ma = shipMaxForceGet() / shipMass;
       double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
       if (na.Length() > sideALimit) na *= sideALimit / na.Length();
 
@@ -1119,7 +1146,7 @@ namespace kradar_p
     string dockHeadPoint = null;
     Vector3D dhp;
     Vector3D followGetForward() {
-      if (fpIdx < fpList.Count - 1) return motherMatrixD.Forward;
+      if (fpIdx < fpList.Count - 2) return motherMatrixD.Forward;
       string tmps = "";
       if (dockHeadPoint == null) {
         cfg.Get("dockHeadPoint", ref tmps);
