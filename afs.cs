@@ -37,7 +37,7 @@ namespace kradar_p
 
       // decide mode
       decideMode();
-      debug("ab: " + autoBalance + " ad: " + autoDown + " af: " + autoFollow);
+      debug("ab: " + autoBalance + " ad: " + autoDown + " af: " + autoFollow + " do: " + fpIdx);
 
       if (!isStandBy)
       {
@@ -387,6 +387,7 @@ namespace kradar_p
     long downStart = 0;
     bool autoDown = false;
     bool autoFollow = false;
+    bool isDocking = false;
     bool needBalance = false;
     void decideMode()
     {
@@ -406,7 +407,17 @@ namespace kradar_p
         autoDown = false;
         autoFollow = true;
         cmdFollow = false;
+        isDocking = false;
       }
+
+      if (cmdDock) {
+        autoBalance = false;
+        autoDown = false;
+        autoFollow = true;
+        cmdDock = false;
+        isDocking = true;
+      }
+
       if (cmdControl)
       {
         autoFollow = false;
@@ -487,7 +498,6 @@ namespace kradar_p
         double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z + nv) - Math.PI * 0.5;
         fbAngle = -fbAngle * 1;
         double cPitch = Math.Atan2(pGravityLocal.Y, pGravityLocal.Z) + Math.PI * 0.5;
-        debug("fb: " + fbAngle);
 
         SetGyroPitch((fbAngle - cPitch) * 0.15);
         needRYP[2] = true;
@@ -497,7 +507,7 @@ namespace kradar_p
       if (autoFollow)
       {
         // yaw
-        var motherPoint = Vector3D.TransformNormal(motherMatrixD.Forward, shipRevertMat);
+        var motherPoint = Vector3D.TransformNormal(followGetForward(), shipRevertMat);
         var angle = Math.Atan2(motherPoint.Z, motherPoint.X);
         angle = Math.PI * 0.5 + angle;
         SetGyroYaw(angle);
@@ -567,7 +577,6 @@ namespace kradar_p
         double nf = shipMass * na;
 
         double per = nf / shipMaxForce;
-        debug("per: " + per);
 
         foreach (IMyThrust t in shipThrusts[0][T_UP])
         {
@@ -580,13 +589,9 @@ namespace kradar_p
         if (naL1MainLocal.Length() > 0.01)
           dot = Vector3D.Dot(Vector3D.Normalize(naL1MainLocal), new Vector3D(0, 1, 0));
         var nf = shipMass * naL1MainLocal.Length();
-        debug("unf: " + nf);
-        debug("smf: " + shipMaxForce);
         double per = 0;
         if (shipMaxForce > 0) per = nf / shipMaxForce;
-        debug("upp: " + per);
         per *= dot;
-        debug("upp: " + per);
         foreach (IMyThrust t in shipThrusts[0][T_UP])
         {
           t.ThrustOverridePercentage = (float)per;
@@ -601,9 +606,7 @@ namespace kradar_p
           dot = Vector3D.Dot(Vector3D.Normalize(naL1BackLocal), new Vector3D(0, 0, -1));
         per = 0;
         if (maxBack > 0) per = nf / maxBack;
-        debug("bpp: " + per);
         per *= dot;
-        debug("bpp: " + per);
         foreach (IMyThrust t in shipThrusts[0][T_FRONT])
         {
           if (per == 0) t.Enabled = false;
@@ -728,11 +731,10 @@ namespace kradar_p
           if (motherPosition == Vector3D.Zero) break;
           cmdFollow = true;
           break;
-        // case "DOCKINGON":
-        //     if (motherPosition == Vector3D.Zero) break;
-        //     commandCache = "DOCKINGON";
-        //     commandStart = t;
-        //     break;
+        case "DOCKINGON":
+          if (motherPosition == Vector3D.Zero) break;
+          cmdDock = true;
+          break;
         // case ("LOADMISSILEON"):
         //     //TODO
         //     break;
@@ -891,7 +893,7 @@ namespace kradar_p
     void calcFollowNA()
     {
       if (!autoFollow && !autoDown) return;
-      Vector3D pd = motherPosition + Vector3D.TransformNormal(fpList[fpIdx], motherMatrixD) - shipPosition;
+      Vector3D pd = motherPosition + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
       if (pd.Length() > 100) pd = pd / pd.Length() * 100;
       Vector3D nv = motherVelocity + pd * 0.2;
       Vector3D na = (nv - shipVelGet()) * 0.5;
@@ -906,7 +908,7 @@ namespace kradar_p
         if (tpd.Length() >= 50) continue;
         var al = MathHelper.Clamp(50 - tpd.Length(), 0, 10) * 2.0;
         var aa = tpd / tpd.Length() * al;
-        na += aa;
+        if(fpIdx == 0)na += aa;
       }
 
       // calc plane need (reject gravity dir)
@@ -1090,9 +1092,63 @@ namespace kradar_p
           cfg.Set("followPositions", "0,0,0");
           cfg.Save();
         }
+        fpIdx = fpList.Count - 1;
+        isDocking = true;
       }
 
-      // TODO fpIdx
+      if (!autoFollow) return;
+      if (isDocking && fpIdx < fpList.Count - 1) {
+        var diff = (shipPosition) - (motherPosition + Vector3D.TransformNormal(fpList[fpIdx], motherMatrixD));
+        if (diff.Length() < 1.5) {
+            fpIdx ++;
+        }
+      }
+      if (!isDocking && fpIdx > 0) {
+        var diff = (shipPosition) - (motherPosition + Vector3D.TransformNormal(fpList[fpIdx], motherMatrixD));
+        if (diff.Length() < 1.5) {
+            fpIdx --;
+        }
+      }
+
+    }
+
+    Vector3D followGetFP() {
+      return fpList[fpIdx];
+    }
+
+    string dockHeadPoint = null;
+    Vector3D dhp;
+    Vector3D followGetForward() {
+      if (fpIdx < fpList.Count - 1) return motherMatrixD.Forward;
+      string tmps = "";
+      if (dockHeadPoint == null) {
+        cfg.Get("dockHeadPoint", ref tmps);
+        if (tmps == "") {
+          tmps = "F";
+          cfg.Set("dockHeadPoint", tmps);
+          cfg.Save();
+        }
+        switch(tmps) {
+          case "F":
+            dhp = motherMatrixD.Forward;
+            break;
+          case "B":
+            dhp =  motherMatrixD.Backward;
+            break;
+          case "L":
+            dhp =  motherMatrixD.Left;
+            break;
+          case "R":
+            dhp =  motherMatrixD.Right;
+            break;
+          default:
+            cfg.Set("dockHeadPoint", "F");
+            cfg.Save();
+            dhp =  motherMatrixD.Forward;
+            break;
+        }
+      }
+      return dhp;
     }
 
     #endregion followPosition
