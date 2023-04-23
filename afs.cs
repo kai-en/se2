@@ -44,7 +44,7 @@ namespace kradar_p
       decideMode();
       debug("ab: " + autoBalance + " ad: " + autoDown + " af: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx);
 
-      if (!isStandBy)
+      if (!isStandBy && !docked)
       {
         // follow position
         followPosition();
@@ -416,6 +416,7 @@ namespace kradar_p
     bool autoFollow = false;
     bool isDocking = false;
     bool needBalance = false;
+    bool docked = false;
     void decideMode()
     {
       shortClick(ref spaceStart, moveInput.Y, true, 0.5, 0.1, ref autoBalance);
@@ -436,7 +437,9 @@ namespace kradar_p
         cmdFollow = false;
         isDocking = false;
         if(fpIdx == fpList.Count - 1) fpIdx --;
-        shipConns.ForEach(c => c.Enabled = false);
+        shipConns.ForEach(c => c.Disconnect());
+        docked = false;
+        setDampenersOverride(mainShipCtrl, false);
       }
 
       if (cmdDock) {
@@ -445,7 +448,7 @@ namespace kradar_p
         autoFollow = true;
         cmdDock = false;
         isDocking = true;
-        shipConns.ForEach(c => c.Enabled = true);
+        setDampenersOverride(mainShipCtrl, false);
       }
 
       if (cmdControl)
@@ -463,9 +466,19 @@ namespace kradar_p
           t.ThrustOverridePercentage = 0;
           t.Enabled = true;
         }
-        shipConns.ForEach(c => c.Enabled = true);
+        setDampenersOverride(mainShipCtrl, true);
       }
       needBalance = autoBalance || autoDown;
+
+      if (isDocking && ! docked) {
+        if (shipConns.Any(c => c.Status.ToString().Equals("Connectable"))) {
+          shipConns.ForEach(c => c.Connect());
+          shipThrusts.ForEach(tl => tl.ForEach(tll => tll.ForEach(t => t.ThrustOverridePercentage = 0)));
+          shipGyros.ForEach(g => g.GyroOverride = false);
+          setDampenersOverride(mainShipCtrl, false);
+          docked = true;
+        }
+      }
     }
     void shortClick(ref long si, double inp, bool isP, double tl, double dl, ref bool mode)
     {
