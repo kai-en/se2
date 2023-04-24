@@ -40,6 +40,9 @@ namespace kradar_p
       // parse input
       parseInput();
 
+      // parse radar
+      parseRadar();
+
       // decide mode
       decideMode();
       debug("ab: " + autoBalance + " ad: " + autoDown + " af: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx);
@@ -1208,6 +1211,69 @@ namespace kradar_p
     }
 
     #endregion followPosition
+
+    #region parseRadar
+    IMyTextSurface radarSurface;
+    class RadarTarget
+    {
+        public long id;
+        public bool isSelected;
+        public bool isHighThreaten;
+        public Vector3D position;
+        public Vector3D velocity;
+    }
+    Dictionary<long, RadarTarget> radarTargets = new Dictionary<long, RadarTarget>();
+    void parseRadar() {
+      if (radarSurface == null) {
+        string RADAR_COMPUTER_NAME = "";
+        cfg.Get("RADAR_NAME", ref RADAR_COMPUTER_NAME);
+        if (RADAR_COMPUTER_NAME == "") {
+          RADAR_COMPUTER_NAME = "radar";
+          cfg.Set("RADAR_NAME", RADAR_COMPUTER_NAME);
+          cfg.Save();
+        }
+        List<IMyProgrammableBlock> tmpProgBlockList = new List<IMyProgrammableBlock>();
+        GridTerminalSystem.GetBlocksOfType<IMyProgrammableBlock>(tmpProgBlockList, b => b.CustomName.Contains(RADAR_COMPUTER_NAME));
+        if (tmpProgBlockList.Count > 0)
+        {
+            radarSurface = ((IMyTextSurfaceProvider)tmpProgBlockList[0]).GetSurface(0);
+        }
+      }
+      if (radarSurface == null) return;
+      string text = radarSurface.GetText();
+      radarTargets.Clear();
+      if (text == null || text.Length == 0) return;
+      string[] lines = text.Split('\n');
+      foreach (var l in lines)
+      {
+          if (l == null || l.Length == 0) continue;
+          string[] fields = l.Split(':');
+          if (fields.Count() < 9) continue;
+          RadarTarget radarTarget = new RadarTarget();
+          double x, y, z, vx, vy, vz;
+          bool allRead = true;
+          allRead &= long.TryParse(fields[0], out radarTarget.id);
+          if (fields[1].Equals("Y")) radarTarget.isSelected = true;
+          else if (fields[1].Equals("N")) radarTarget.isSelected = false;
+          else allRead = false;
+          if (fields[2].Equals("Y")) radarTarget.isHighThreaten = true;
+          else if (fields[2].Equals("N")) radarTarget.isHighThreaten = false;
+          else allRead = false;
+          //if(!radarTargets.Any())radarTarget.isHighThreaten = true; // debugMode2
+          allRead &= double.TryParse(fields[3], out x);
+          allRead &= double.TryParse(fields[4], out y);
+          allRead &= double.TryParse(fields[5], out z);
+          allRead &= double.TryParse(fields[6], out vx);
+          allRead &= double.TryParse(fields[7], out vy);
+          allRead &= double.TryParse(fields[8], out vz);
+          if (!allRead) continue;
+          radarTarget.position = new Vector3D(x, y, z);
+          radarTarget.velocity = new Vector3D(vx, vy, vz);
+          radarTargets.Add(radarTarget.id, radarTarget);
+      }
+      debug("target count: " + radarTargets.Count);
+    }
+    #endregion parseRadar
 
     #endregion ingamescript
 
