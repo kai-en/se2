@@ -401,6 +401,7 @@ void Main(string arg, UpdateType updateSource)
 
     callDcsSendPosition();
     callDcsSendAvoid();
+    callDcsSendEnemy();
 
     if (LaunchStateMachine != null)
     {
@@ -498,7 +499,28 @@ void callDcsSendPosition()
 
 }
 
-void sendPosition(long entityId, TargetData td)
+void callDcsSendEnemy()
+{
+    //debugOnce = $"target {t} count {targetDataDict.Count}";
+    List<KeyValuePair<long, TargetData>> enemyList = targetDataDict.Where(i => i.Value.Relation == TargetRelation.Enemy && (MePosition - i.Value.estPosition()).Length() < ALERT_RANGE).ToList();
+    enemyList.Sort((l, r) =>
+            (int)((MePosition - r.Value.estPosition()).Length() -
+        (MePosition - l.Value.estPosition()).Length())
+    );
+    string message = "";
+    if (enemyList.Count > 0)
+    {
+        var k = enemyList[0].Key;
+        var v = enemyList[0].Value;
+        Vector3D pos = v.estPosition();
+        Vector3D vel = v.Velocity;
+        message = "RADAR-ENEMY:" +pos.X + "," + pos.Y + "," + pos.Z + "," + vel.X + "," + vel.Y + "," + vel.Z + "," + v.Round;
+        PlayAction(dcsComputer, "Run", message);
+    }
+
+}
+
+void sendPosition(long entityId, TargetData td, string cmd = "RADAR")
 {
     MatrixD refWorldMatrix = td.Mat;
     var f = td.Mat.Forward;
@@ -510,24 +532,11 @@ void sendPosition(long entityId, TargetData td)
     }
     Vector3D speed = td.Velocity;
     string motherCode = td.Code;
-    string message = "RADAR" + ":" + refWorldMatrix.M11 + "," + refWorldMatrix.M12 + "," + refWorldMatrix.M13 + "," + refWorldMatrix.M14 + "," +
+    string message = cmd + ":" + refWorldMatrix.M11 + "," + refWorldMatrix.M12 + "," + refWorldMatrix.M13 + "," + refWorldMatrix.M14 + "," +
     refWorldMatrix.M21 + "," + refWorldMatrix.M22 + "," + refWorldMatrix.M23 + "," + refWorldMatrix.M24 + "," +
     refWorldMatrix.M31 + "," + refWorldMatrix.M32 + "," + refWorldMatrix.M33 + "," + refWorldMatrix.M34 + "," +
     currentPos.X + "," + currentPos.Y + "," + currentPos.Z + "," + refWorldMatrix.M44 + "," +
     speed.X + "," + speed.Y + "," + speed.Z;
-    List<KeyValuePair<long, TargetData>> enemyList = targetDataDict.Where(i => i.Value.Relation == TargetRelation.Enemy && (MePosition - i.Value.estPosition()).Length() < ALERT_RANGE).ToList();
-    enemyList.Sort((l, r) =>
-            (int)((MePosition - r.Value.estPosition()).Length() -
-        (MePosition - l.Value.estPosition()).Length())
-    );
-    if (enemyList.Count > 0)
-    {
-        var k = enemyList[0].Key;
-        var v = enemyList[0].Value;
-        Vector3D pos = v.estPosition();
-        Vector3D vel = v.Velocity;
-        message += "," + pos.X + "," + pos.Y + "," + pos.Z + "," + vel.X + "," + vel.Y + "," + vel.Z + "," + td.Round;
-    }
 
     PlayAction(dcsComputer, "Run", message);
 

@@ -8,6 +8,7 @@ using System.Text;
 using VRage.Game;
 using VRage.Game.ModAPI.Ingame;
 using VRageMath;
+using VRage.Game.ModAPI.Ingame.Utilities;
 
 namespace kradar_p
 {
@@ -39,9 +40,6 @@ namespace kradar_p
 
       // parse input
       parseInput();
-
-      // parse radar
-      parseRadar();
 
       // decide mode
       decideMode();
@@ -166,7 +164,8 @@ namespace kradar_p
     {
       return shipVel;
     }
-    CustomConfiguration cfg;
+    MyIni cfg;
+    const string CFG_GENERAL = "AFS - General";
     void getBlocks()
     {
       List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
@@ -174,8 +173,8 @@ namespace kradar_p
       {
         GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks, b => b.CubeGrid == Me.CubeGrid);
         mainShipCtrl = (IMyShipController)matchNameOrFirst(blocks, "main");
-        cfg = new CustomConfiguration(Me);
-        cfg.Load();
+        cfg = new MyIni();
+        cfg.TryParse(Me.CustomData);
       }
       if (mainShipCtrl == null) return;
 
@@ -513,6 +512,7 @@ namespace kradar_p
     #endregion decideMode
 
     #region balanceGravity
+    double WEAPON_MAX_RANGE = 800;
     void balanceGravity()
     {
       bool[] needRYP = new bool[] { false, false, false };
@@ -520,6 +520,20 @@ namespace kradar_p
       if (pGravity.Length() < 0.01) return;
       double ma = shipMaxForceGet() / shipMass;
       double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length());
+
+      debug("mtt: " + mainTarget.lastTime);
+
+      bool haveTarget = false;
+      if (tickGet() - mainTarget.lastTime < 120 ) {
+        Vector3D tp = mainTarget.estPosition(tickGet());
+        if ((shipPosition - tp).Length() < WEAPON_MAX_RANGE) {
+          haveTarget = true;
+          debug("mt: " + display3D(tp));
+        }
+        // TODO aim 
+        // TODO fire
+      }
+
       if (needBalance)
       {
         Vector3D graNoFB = Vector3D.Reject(pGravityLocal, new Vector3D(0, 0, 1));
@@ -536,7 +550,7 @@ namespace kradar_p
         needRYP[0] = true;
       }
 
-      if (autoDown)
+      if (autoDown && !haveTarget)
       {
         Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
         Vector3D sv = shipVelLocalGet();
@@ -551,7 +565,7 @@ namespace kradar_p
       }
 
       // follow mode
-      if (autoFollow)
+      if (autoFollow && !haveTarget)
       {
         // yaw
         var motherPoint = Vector3D.TransformNormal(followGetForward(), shipRevertMat);
@@ -722,6 +736,15 @@ namespace kradar_p
     bool cmdFollow;
     bool cmdDock;
     bool cmdControl;
+    class MainTarget {
+      public Vector3D position;
+      public Vector3D velocity;
+      public long lastTime;
+      public Vector3D estPosition(long t) { 
+        return this.position + (1D/60)*(t-this.lastTime)*this.velocity;
+      }
+    }
+    MainTarget mainTarget = new MainTarget();
     void parseRadar(string arguments)
     {
       debug("standby: " + isStandBy);
@@ -745,6 +768,16 @@ namespace kradar_p
         args = kv[1].Split(',');
         avoidMap[Convert.ToInt64(args[0])] = new Vector3D(Convert.ToDouble(args[1]), Convert.ToDouble(args[2]), Convert.ToDouble(args[3]));
         avoidLifeTimeMap[Convert.ToInt64(args[0])] = tickGet();
+        
+      }
+
+      debugCondition("enemy: " + kv[1], kv[0].Equals(sonCode + "-ENEMY"));
+      if (kv[0].Equals(sonCode + "-ENEMY"))
+      {
+        args = kv[1].Split(',');
+        mainTarget.position = new Vector3D(Convert.ToDouble(args[0]), Convert.ToDouble(args[1]), Convert.ToDouble(args[2]));
+        mainTarget.velocity = new Vector3D(Convert.ToDouble(args[3]), Convert.ToDouble(args[4]), Convert.ToDouble(args[5]));
+        mainTarget.lastTime = tickGet();
       }
 
       foreach (var item in avoidLifeTimeMap.ToList())
@@ -994,127 +1027,6 @@ namespace kradar_p
     #endregion calcFollowNA
 
     #region followPosition
-    public class CustomConfiguration
-    {
-      public IMyTerminalBlock configBlock;
-      public Dictionary<string, string> config;
-
-      public CustomConfiguration(IMyTerminalBlock block)
-      {
-        configBlock = block;
-        config = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-      }
-
-      public void Load()
-      {
-        ParseCustomData(configBlock, config);
-      }
-
-      public void Save()
-      {
-        WriteCustomData(configBlock, config);
-      }
-
-      public string Get(string key, string defVal = null)
-      {
-        return config.GetValueOrDefault(key.Trim(), defVal);
-      }
-
-      public void Get(string key, ref string res)
-      {
-        string val;
-        if (config.TryGetValue(key.Trim(), out val))
-        {
-          res = val;
-        }
-      }
-
-      public void Get(string key, ref int res)
-      {
-        int val;
-        if (int.TryParse(Get(key), out val))
-        {
-          res = val;
-        }
-      }
-
-      public void Get(string key, ref float res)
-      {
-        float val;
-        if (float.TryParse(Get(key), out val))
-        {
-          res = val;
-        }
-      }
-
-      public void Get(string key, ref double res)
-      {
-        double val;
-        if (double.TryParse(Get(key), out val))
-        {
-          res = val;
-        }
-      }
-
-      public void Get(string key, ref bool res)
-      {
-        bool val;
-        if (bool.TryParse(Get(key), out val))
-        {
-          res = val;
-        }
-      }
-      public void Get(string key, ref bool? res)
-      {
-        bool val;
-        if (bool.TryParse(Get(key), out val))
-        {
-          res = val;
-        }
-      }
-
-      public void Set(string key, string value)
-      {
-        config[key.Trim()] = value;
-      }
-
-      public static void ParseCustomData(IMyTerminalBlock block, Dictionary<string, string> cfg, bool clr = true)
-      {
-        if (clr)
-        {
-          cfg.Clear();
-        }
-
-        string[] arr = block.CustomData.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        for (int i = 0; i < arr.Length; i++)
-        {
-          string ln = arr[i];
-          string va;
-
-          int p = ln.IndexOf('=');
-          if (p > -1)
-          {
-            va = ln.Substring(p + 1);
-            ln = ln.Substring(0, p);
-          }
-          else
-          {
-            va = "";
-          }
-          cfg[ln.Trim()] = va.Trim();
-        }
-      }
-
-      public static void WriteCustomData(IMyTerminalBlock block, Dictionary<string, string> cfg)
-      {
-        StringBuilder sb = new StringBuilder(cfg.Count * 100);
-        foreach (KeyValuePair<string, string> va in cfg)
-        {
-          sb.Append(va.Key).Append('=').Append(va.Value).Append('\n');
-        }
-        block.CustomData = sb.ToString();
-      }
-    }
 
     void parseV3L(string tmps, List<Vector3D> l)
     {
@@ -1143,13 +1055,15 @@ namespace kradar_p
       if (fpList.Count == 0)
       {
         string tmps = "";
-        cfg.Get("followPositions", ref tmps);
+        tmps = cfg.Get(CFG_GENERAL, "followPositions").ToString("");
         parseV3L(tmps, fpList);
         if (fpList.Count == 0)
         {
+          fpList.Add(new Vector3D(0, 10, 100));
+          fpList.Add(new Vector3D(0, 0, 50));
           fpList.Add(new Vector3D(0, 0, 0));
-          cfg.Set("followPositions", "0,0,0");
-          cfg.Save();
+          cfg.Set(CFG_GENERAL, "followPositions", "0,10,100;0,0,50;0,0,0");
+          Me.CustomData = cfg.ToString();
         }
         fpIdx = fpList.Count - 1;
         isDocking = true;
@@ -1181,11 +1095,11 @@ namespace kradar_p
       if (fpIdx < fpList.Count - 2) return motherMatrixD.Forward;
       string tmps = "";
       if (dockHeadPoint == null) {
-        cfg.Get("dockHeadPoint", ref tmps);
+        tmps = cfg.Get(CFG_GENERAL, "dockHeadPoint").ToString("");
         if (tmps == "") {
           tmps = "F";
-          cfg.Set("dockHeadPoint", tmps);
-          cfg.Save();
+          cfg.Set(CFG_GENERAL, "dockHeadPoint", tmps);
+          Me.CustomData = cfg.ToString();
         }
         switch(tmps) {
           case "F":
@@ -1201,8 +1115,8 @@ namespace kradar_p
             dhp =  motherMatrixD.Right;
             break;
           default:
-            cfg.Set("dockHeadPoint", "F");
-            cfg.Save();
+            cfg.Set(CFG_GENERAL, "dockHeadPoint", "F");
+            Me.CustomData = cfg.ToString();
             dhp =  motherMatrixD.Forward;
             break;
         }
@@ -1211,69 +1125,6 @@ namespace kradar_p
     }
 
     #endregion followPosition
-
-    #region parseRadar
-    IMyTextSurface radarSurface;
-    class RadarTarget
-    {
-        public long id;
-        public bool isSelected;
-        public bool isHighThreaten;
-        public Vector3D position;
-        public Vector3D velocity;
-    }
-    Dictionary<long, RadarTarget> radarTargets = new Dictionary<long, RadarTarget>();
-    void parseRadar() {
-      if (radarSurface == null) {
-        string RADAR_COMPUTER_NAME = "";
-        cfg.Get("RADAR_NAME", ref RADAR_COMPUTER_NAME);
-        if (RADAR_COMPUTER_NAME == "") {
-          RADAR_COMPUTER_NAME = "radar";
-          cfg.Set("RADAR_NAME", RADAR_COMPUTER_NAME);
-          cfg.Save();
-        }
-        List<IMyProgrammableBlock> tmpProgBlockList = new List<IMyProgrammableBlock>();
-        GridTerminalSystem.GetBlocksOfType<IMyProgrammableBlock>(tmpProgBlockList, b => b.CustomName.Contains(RADAR_COMPUTER_NAME));
-        if (tmpProgBlockList.Count > 0)
-        {
-            radarSurface = ((IMyTextSurfaceProvider)tmpProgBlockList[0]).GetSurface(0);
-        }
-      }
-      if (radarSurface == null) return;
-      string text = radarSurface.GetText();
-      radarTargets.Clear();
-      if (text == null || text.Length == 0) return;
-      string[] lines = text.Split('\n');
-      foreach (var l in lines)
-      {
-          if (l == null || l.Length == 0) continue;
-          string[] fields = l.Split(':');
-          if (fields.Count() < 9) continue;
-          RadarTarget radarTarget = new RadarTarget();
-          double x, y, z, vx, vy, vz;
-          bool allRead = true;
-          allRead &= long.TryParse(fields[0], out radarTarget.id);
-          if (fields[1].Equals("Y")) radarTarget.isSelected = true;
-          else if (fields[1].Equals("N")) radarTarget.isSelected = false;
-          else allRead = false;
-          if (fields[2].Equals("Y")) radarTarget.isHighThreaten = true;
-          else if (fields[2].Equals("N")) radarTarget.isHighThreaten = false;
-          else allRead = false;
-          //if(!radarTargets.Any())radarTarget.isHighThreaten = true; // debugMode2
-          allRead &= double.TryParse(fields[3], out x);
-          allRead &= double.TryParse(fields[4], out y);
-          allRead &= double.TryParse(fields[5], out z);
-          allRead &= double.TryParse(fields[6], out vx);
-          allRead &= double.TryParse(fields[7], out vy);
-          allRead &= double.TryParse(fields[8], out vz);
-          if (!allRead) continue;
-          radarTarget.position = new Vector3D(x, y, z);
-          radarTarget.velocity = new Vector3D(vx, vy, vz);
-          radarTargets.Add(radarTarget.id, radarTarget);
-      }
-      debug("target count: " + radarTargets.Count);
-    }
-    #endregion parseRadar
 
     #endregion ingamescript
 
