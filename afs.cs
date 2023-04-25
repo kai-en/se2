@@ -985,8 +985,8 @@ namespace kradar_p
     {
       if (!autoFollow && !autoDown) return;
       Vector3D pd = motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
-      if (pd.Length() < 1000) pd = Vector3D.Normalize(pd) * Math.Log(pd.Length()) * 1.0;
-      else pd = Vector3D.Normalize(pd) * Math.Log(pd.Length()) * 10.0;
+      if (pd.Length() < 20) pd = Vector3D.Normalize(pd) * Math.Log(pd.Length()) * 0.5;
+      else pd = Vector3D.Normalize(pd) * Math.Sqrt(pd.Length()) * 1.5;
       Vector3D nv = motherVelocity + pd;
       Vector3D na = (nv - shipVelGet()) * 0.5;
       double ma = shipMaxForceGet() / shipMass;
