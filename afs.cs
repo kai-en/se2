@@ -513,6 +513,11 @@ namespace kradar_p
 
     #region balanceGravity
     double WEAPON_MAX_RANGE = 800;
+    double axisYOffset = 0;
+    double axisBs = 350;
+    double axisGr = 0;
+    double axisBr = 0;
+    double axisCr = 0;
     void balanceGravity()
     {
       bool[] needRYP = new bool[] { false, false, false };
@@ -530,7 +535,10 @@ namespace kradar_p
           haveTarget = true;
           debug("mt: " + display3D(tp));
         }
-        // TODO aim 
+        // aim 
+        Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, tp + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
+        Vector3D tarN = Vector3D.Normalize(HitPoint - shipPosition);
+		    tarN = Vector3D.Transform(tarN, shipRevertMat);
         // TODO fire
       }
 
@@ -877,99 +885,7 @@ namespace kradar_p
 
       motherVelocity = new Vector3D(Convert.ToDouble(args[16]), Convert.ToDouble(args[17]), Convert.ToDouble(args[18]));
 
-      // TODO fly by aim
-
-      /*
-      needFlyByAim = false;
-      if (susMode)
-      {
-          flyByAimPosition = estShipPosition();
-          flyByAimSpeed = Vector3D.Zero;
-          needFlyByAim = true;
-      }
-
-      if (!flyByOn) return;
-
-      if (args.Count() >= 25)
-      {
-          flyByAimPosition = new Vector3D(Convert.ToDouble(args[19]), Convert.ToDouble(args[20]), Convert.ToDouble(args[21]));
-          flyByAimSpeed = new Vector3D(Convert.ToDouble(args[22]), Convert.ToDouble(args[23]), Convert.ToDouble(args[24]));
-          needFlyByAim = true;
-          callComputer(fighterFcs, "FLYBYAIM:" + flyByAimPosition.X + "," + flyByAimPosition.Y + "," + flyByAimPosition.Z);
-
-          if (args.Count() >= 26)
-          {
-              Vector3D dir = flyByAimPosition - estShipPosition();
-              dir = Vector3D.Normalize(dir);
-              if (!isBig)
-              {
-                  double standardAttackAngle = Convert.ToDouble(args[25]);
-                  MatrixD aimMatrix;
-                  if (naturalGravityLength > 0.01f)
-                  {
-                      dir = naturalGravity;
-                      aimMatrix = MatrixD.CreateFromDir(Vector3D.Normalize(naturalGravity), shipMatrix.Forward);
-                  }
-                  else
-                  {
-                      aimMatrix = MatrixD.CreateFromDir(dir, shipMatrix.Up);
-                  }
-
-                  var angle = standardAttackAngle + (commandWaitTic * 1d / commandAllTic) * MathHelper.TwoPi;
-                  Vector3D upBaseAim = new Vector3D(Math.Cos(angle), Math.Sin(angle), 0);
-                  Vector3D up = Vector3D.TransformNormal(upBaseAim, aimMatrix);
-                  var ad = t % 600 / 600f * adm;
-                  flyByAttackPosition = flyByAimPosition + 800 * up - (droneAttackRange + ad) * dir;
-                  var tp2m = flyByAimPosition - MePosition;
-                  var tp2mn = Vector3D.Normalize(tp2m);
-                  var fp2m = flyByAttackPosition - MePosition;
-                  var fp2ml = fp2m.Dot(tp2mn);
-                  if (fp2ml > tp2m.Length())
-                  {
-                      var nap2m = tp2m * (tp2m.Length() - 800) / tp2m.Length();
-                      flyByAttackPosition = MePosition + nap2m;
-                  }
-              }
-              else
-              {
-                  Vector3D tmp = Vector3D.Reject(dir, shipMatrix.Up);
-                  if (tmp.Equals(Vector3D.Zero))
-                  {
-                      tmp = shipMatrix.Forward;
-                  }
-                  else
-                  {
-                      tmp = Vector3D.Normalize(tmp);
-                  }
-                  MatrixD rd = MatrixD.CreateFromDir(tmp, shipMatrix.Up);
-
-                  Vector3D off;
-
-                  switch (flyByOffsetDirection)
-                  {
-                      case "LEFT":
-                          off = rd.Left;
-                          break;
-                      case "RIGHT":
-                          off = rd.Right;
-                          break;
-                      default:
-                          off = rd.Up;
-                          break;
-                  }
-
-                  flyByAttackPosition = flyByAimPosition + 1500 * off - 100 * dir;
-
-              }
-          }
-
-      }
-      if (needFlyByAim == false && radarHighThreatPosition != Vector3D.Zero)
-      {
-          flyByAimPosition = radarHighThreatPosition;
-          needFlyByAim = true;
-      }
-      */
+      
     }
 
     Vector3D motherPositionGet() {
@@ -1125,6 +1041,194 @@ namespace kradar_p
     }
 
     #endregion followPosition
+
+    #region aim
+    static Vector3D HitPointCaculate(Vector3D Me_Position, Vector3D Me_Velocity, Vector3D Me_Acceleration, Vector3D Target_Position, Vector3D Target_Velocity, Vector3D Target_Acceleration,
+              double Bullet_InitialSpeed, double Bullet_Acceleration, double Bullet_MaxSpeed,
+              float gravityRate, Vector3D ng, double bulletMaxRange, double curvationRate)
+    {
+      string debugString = "";
+      //GravityHitPointCaculate(new Vector3D(1, 1, 0), new Vector3D(0,0,-1), new Vector3D(0,-1,0), 3D, out debugString);
+      //debugInfo += "\nghpc\n" + debugString + "\n";
+      if (gravityRate > 0 && ng.Length() != 0)
+      {
+        var ret = GravityHitPointCaculate(Target_Position - Me_Position, Target_Velocity - Me_Velocity, ng * gravityRate, Bullet_InitialSpeed, bulletMaxRange, curvationRate, out debugString);
+        if (ret == Vector3D.Zero) return Vector3D.Zero;
+        ret += Me_Position;
+        // debugInfo += "\nghpc\n" + debugString + "\n";
+        return ret;
+      }
+      //迭代算法   
+      Vector3D HitPoint = new Vector3D();
+      Vector3D Smt = Target_Position - Me_Position;//发射点指向目标的矢量   
+      Vector3D Velocity = Target_Velocity - Me_Velocity; //目标飞船和自己飞船总速度   
+      Vector3D Acceleration = Target_Acceleration; //目标飞船和自己飞船总加速度   
+
+      double AccTime = (Bullet_Acceleration == 0 ? 0 : (Bullet_MaxSpeed - Bullet_InitialSpeed) / Bullet_Acceleration);//子弹加速到最大速度所需时间   
+      double AccDistance = Bullet_InitialSpeed * AccTime + 0.5 * Bullet_Acceleration * AccTime * AccTime;//子弹加速到最大速度经过的路程   
+
+      double HitTime = 0;
+
+      if (AccDistance < Smt.Length())//目标在炮弹加速过程外   
+      {
+        HitTime = (Smt.Length() - Bullet_InitialSpeed * AccTime - 0.5 * Bullet_Acceleration * AccTime * AccTime + Bullet_MaxSpeed * AccTime) / Bullet_MaxSpeed;
+        HitPoint = Target_Position + Velocity * HitTime + 0.5 * Acceleration * HitTime * HitTime;
+      }
+      else//目标在炮弹加速过程内 
+      {
+        double HitTime_Z = (-Bullet_InitialSpeed + Math.Pow((Bullet_InitialSpeed * Bullet_InitialSpeed + 2 * Bullet_Acceleration * Smt.Length()), 0.5)) / Bullet_Acceleration;
+        double HitTime_F = (-Bullet_InitialSpeed - Math.Pow((Bullet_InitialSpeed * Bullet_InitialSpeed + 2 * Bullet_Acceleration * Smt.Length()), 0.5)) / Bullet_Acceleration;
+        HitTime = (HitTime_Z > 0 ? (HitTime_F > 0 ? (HitTime_Z < HitTime_F ? HitTime_Z : HitTime_F) : HitTime_Z) : HitTime_F);
+        HitPoint = Target_Position + Velocity * HitTime + 0.5 * Acceleration * HitTime * HitTime;
+      }
+      //迭代，仅迭代更新碰撞时间，每次迭代更新右5位数量级   
+      for (int i = 0; i < 3; i++)
+      {
+        if (AccDistance < Vector3D.Distance(HitPoint, Me_Position))//目标在炮弹加速过程外   
+        {
+          HitTime = (Vector3D.Distance(HitPoint, Me_Position) - Bullet_InitialSpeed * AccTime - 0.5 * Bullet_Acceleration * AccTime * AccTime + Bullet_MaxSpeed * AccTime) / Bullet_MaxSpeed;
+          HitPoint = Target_Position + Velocity * HitTime + 0.5 * Acceleration * HitTime * HitTime;
+        }
+        else//目标在炮弹加速过程内   
+        {
+          double HitTime_Z = (-Bullet_InitialSpeed + Math.Pow((Bullet_InitialSpeed * Bullet_InitialSpeed + 2 * Bullet_Acceleration * Vector3D.Distance(HitPoint, Me_Position)), 0.5)) / Bullet_Acceleration;
+          double HitTime_F = (-Bullet_InitialSpeed - Math.Pow((Bullet_InitialSpeed * Bullet_InitialSpeed + 2 * Bullet_Acceleration * Vector3D.Distance(HitPoint, Me_Position)), 0.5)) / Bullet_Acceleration;
+          HitTime = (HitTime_Z > 0 ? (HitTime_F > 0 ? (HitTime_Z < HitTime_F ? HitTime_Z : HitTime_F) : HitTime_Z) : HitTime_F);
+          HitPoint = Target_Position + Velocity * HitTime + 0.5 * Acceleration * HitTime * HitTime;
+        }
+      }
+      return HitPoint;
+    }
+
+    static Vector3D GravityHitPointCaculate(Vector3D tp, Vector3D tv, Vector3D g, double aV, double bulletMaxRange, double curvationRate, out string debugString)
+    {
+      debugString = "";
+      // 问题5 怀疑星球曲率原因，对g采取近小远大处理
+      var gd = Vector3D.Normalize(g);
+      var ngtpr = Vector3D.Reject(tp, gd).Length();
+      g = g * (1 + ((ngtpr - bulletMaxRange * 0.5) * 2 / bulletMaxRange) * curvationRate);
+
+      /*
+      目标速度为  tvx, tvy, tvz. 目标位置  tpx, tpy, tpz.
+      重力加速度 gax, gay, gaz.
+      我方位置 mpx, mpy, mpz, 我方速度 mvx, mvy, mvz
+      炮弹速度标量 aV, 
+      假设炮弹速度为 avx, avy, avz
+      命中时间为 n
+
+      则有
+      tpx + tvx * n = mpx + mvx * n + avx * n +  0.5 * gax * n * n 方程1
+      tpy + tvy * n = mpy + mvy * n + avy * n + 0.5 * gay * n * n 方程2
+      tpz + tvz * n = mpz + mvz * n + avz * n + 0.5 * gaz * n * n 方程3
+      avx * avx + avy * avy + avz * avz = aV * aV 方程4
+
+      以重力方向向下, 面朝目标方向建立座标系, 则有 gax = gaz = 0 gay = -重力加速度
+      且 tpx = mpx = 0
+      由于接受参数时, 已改用本机位置和速度作为位置和速度基准, 所以还有mp = 0和mv=0
+
+      步骤1, 由方程1
+      则可以直接求出avx = tvx - mvx
+
+      由方程3
+      tpz - mpz = (avz + mvz - tvz) * n
+      可知 n大 则 avz 小, n小, 则avz大
+
+      由方程4
+      avz * avz + avy * avy = aV * aV  - avx * avx 
+      由于avx已知, 可知 avz 和 avy 形成一个圆形
+
+      假设gay = 0 先求一个n出来, 再把gay代入, 重新计算avy avz n 迭代多次逼近正确的n值
+
+      */
+
+      if (tp == Vector3D.Zero) return Vector3D.Zero;
+      // 1 建立座标系
+      // 1.1 检查 tp方向 与 g 方向是否 完全同向/异向 算法无法处理这种情况 , 不攻击 (缺陷1)
+      var dot = Vector3D.Dot(Vector3D.Normalize(tp), gd);
+      if (dot == 1 || dot == -1) return Vector3D.Zero;
+      // 1.2 构建座标转换矩阵
+      var forward = Vector3D.Normalize(Vector3D.Reject(tp, gd));
+      var tranmt = MatrixD.CreateLookAt(new Vector3D(), forward, -gd);
+
+      // 1.3 转换座标
+      var tp2 = Vector3D.TransformNormal(tp, tranmt);
+      var tv2 = Vector3D.TransformNormal(tv, tranmt);
+      //debugString = displayVector3D(tp2);
+      //debugString += "\n" + displayVector3D(tv2);
+
+      // 2 求 avx
+      double avx = tv2.X;
+      if (Math.Abs(avx) > aV) return Vector3D.Zero; // 炮速赶不上tv2.X 无法追踪
+                                                    //debugString += "\navx: " + avx;
+
+      // 3 无视g 先算一个avy avz
+      // 3.1 假设减掉tvYZ, Z轴剩余速度有avzd, 则Y轴需要的剩余速度为 (tpy/tpz)*avzd
+      // 有 (tvz+avzd)2 + (tvy + (tpy/tpz)avzd)2 = aVyz2
+      double aVyz = Math.Sqrt(aV * aV - avx * avx);
+      if (tv2.Z * tv2.Z + tv2.Y * tv2.Y > aVyz * aVyz) return Vector3D.Zero; // yz面目标速度大于炮弹速度 追不上, 不考虑利用重力加速度追 (缺陷2)
+                                                                             // tpz 不可能为0 因为能建座标系就表示有向前的分量, 即z方向分量)
+                                                                             // 采用一元二次方程 ax2 +bx + c = 0方式, 整理a , b, c
+      double fa = 1 + ((tp2.Y * tp2.Y) / (tp2.Z * tp2.Z));
+      double fb = 2 * tv2.Z + 2 * tv2.Y * (tp2.Y / tp2.Z);
+      double fc = tv2.Z * tv2.Z + tv2.Y * tv2.Y - aVyz * aVyz;
+      if (fb * fb - 4 * fa * fc < 0) return Vector3D.Zero; // 无解, 返回
+                                                           // 根据 一元二次方程求根公式, 计算x (即avzd)
+      double x = (-fb + Math.Sqrt(fb * fb - 4 * fa * fc)) / (2 * fa);
+      double avz = 0;
+      if (tv2.Z + x < 0)
+      {
+        avz = tv2.Z + x;
+      }
+      else
+      {
+        x = (-fb - Math.Sqrt(fb * fb - 4 * fa * fc)) / (2 * fa);
+        avz = tv2.Z + x;
+      }
+      double avy = tv2.Y + (tp2.Y / tp2.Z) * x;
+
+      // 3.2 根据z轴, 算追及时间 n
+      double zdelta = avz - tv2.Z;
+      double n = tp2.Z / zdelta;
+      if (n < 0) return Vector3D.Zero; // Z轴追及时间为负, 无法追踪
+                                       //debugString += "\naVyz: " + aVyz;
+                                       //debugString += "\navy: " + avy;
+                                       //debugString += "\navz: " + avz;
+                                       //debugString += "\nn: " + n;
+
+      // 4 循环逼近多次(这个方程应该有解, 但这里采取逼近法简化)(缺陷3) 加速度的问题 主要是计算avyg分量应该取多少
+      double avyg = 0;
+      double avyp = avy;
+      for (int i = 0; i < 4; i++)
+      {
+        // 4.1 按当前n 计算avyg, 取avyg = 0.5 * (-g) * n ; 举例, g为 向下10, 时间1秒, 我们需要向上5, 这样前0.5秒为上升期, 后0.5秒为下降期, 上升距离=下降距离, 不影响瞄准
+        avyg = 0.5 * g.Length() * n;
+        // 4.2 由于时间n变长了, 需要重新计算avy
+        avyp = tv2.Y + (tp2.Y / n);
+        // 4.3 加上avyg
+        avyp = avyp + avyg;
+        if (Math.Abs(avyp) > aVyz) return Vector3D.Zero;
+        double avzL = Math.Sqrt(aVyz * aVyz - avyp * avyp);
+        avz = -avzL;
+        zdelta = avz - tv2.Z;
+        double nn = tp2.Z / zdelta;
+        if (nn > n) n = nn;
+        else n = (nn + n) / 2;
+        if (n < 0) return Vector3D.Zero; // Z轴追及时间为负, 无法追踪
+
+        //debugString += "\navy: " + avyp;
+        //debugString += "\navz: " + avz;
+        //debugString += "\nn: " + n;
+
+      }
+
+      // 5 将avx avy avz 转回绝对座标系 并输出(注意本来这里应该输出碰撞点位置 , 但这里以发射速度代替, 所以还要加上本机位置, 调用者处理)
+      avyp *= 0.98;
+      Vector3D av2m = new Vector3D(avx, avyp, avz);
+      Vector3D av = Vector3.Transform(av2m, Matrix.Transpose(tranmt));
+      //debugString += "\nav: " + displayVector3D(av);
+      return av;
+    }
+    #endregion aim
 
     #endregion ingamescript
 
