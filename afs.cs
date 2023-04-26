@@ -449,6 +449,7 @@ namespace kradar_p
       }
 
       if (cmdDock) {
+        if(fpIdx == 0) fpIdx ++;
         autoBalance = false;
         autoDown = false;
         autoFollow = true;
