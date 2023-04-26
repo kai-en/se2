@@ -189,6 +189,10 @@ namespace kradar_p
       if (shipThrusts.Count == 0) getThrusts();
       if (shipGyros.Count == 0) getGyros();
       if (shipConns.Count == 0) getConns();
+
+      if (tickGet() % 300 == 0 && shipWeapons.Count == 0) {
+        GridTerminalSystem.GetBlocksOfType<IMyUserControllableGun>(shipWeapons, b => b.CubeGrid == Me.CubeGrid);
+      }
     }
     void getGyros()
     {
@@ -513,11 +517,18 @@ namespace kradar_p
 
     #region balanceGravity
     double WEAPON_MAX_RANGE = 800;
-    double axisYOffset = 0;
+    double axisYOffset = -0.5;
     double axisBs = 350;
-    double axisGr = 0;
-    double axisBr = 0;
-    double axisCr = 0;
+    double axisGr = 0.75;
+    double axisBr = 800;
+    double axisCr = -0.1;
+/*     MAIN_CANNON_BS=350
+    MAIN_CANNON_BR=800
+    MAIN_CANNON_GR=0.75
+    MAIN_CANNON_YOFF=0
+    MAIN_CANNON_CR=-0.1 */
+    List<IMyUserControllableGun> shipWeapons = new List<IMyUserControllableGun>();
+    // IMySmallGatlingGun    IMySmallMissileLauncher
     void balanceGravity()
     {
       bool[] needRYP = new bool[] { false, false, false };
@@ -526,20 +537,26 @@ namespace kradar_p
       double ma = shipMaxForceGet() / shipMass;
       double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length());
 
-      debug("mtt: " + mainTarget.lastTime);
-
       bool haveTarget = false;
       if (tickGet() - mainTarget.lastTime < 120 ) {
         Vector3D tp = mainTarget.estPosition(tickGet());
         if ((shipPosition - tp).Length() < WEAPON_MAX_RANGE) {
           haveTarget = true;
-          debug("mt: " + display3D(tp));
         }
+      }
+      if (haveTarget) {
         // aim 
-        Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, tp + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
+        Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
         Vector3D tarN = Vector3D.Normalize(HitPoint - shipPosition);
 		    tarN = Vector3D.Transform(tarN, shipRevertMat);
-        // TODO fire
+        debug("atn: " + display3D(tarN));
+        SetGyroYaw(tarN.X * 0.3);
+        needRYP[1] = true;
+        SetGyroPitch(tarN.Y * 0.3);
+        needRYP[2] = true;
+        
+        // fire
+        shipWeapons.ForEach(w => w.ShootOnce());
       }
 
       if (needBalance)
@@ -573,25 +590,27 @@ namespace kradar_p
       }
 
       // follow mode
-      if (autoFollow && !haveTarget)
+      if (autoFollow)
       {
-        // yaw
-        var motherPoint = Vector3D.TransformNormal(followGetForward(), shipRevertMat);
-        var angle = Math.Atan2(motherPoint.Z, motherPoint.X);
-        angle = Math.PI * 0.5 + angle;
-        angle = utilMyClamp(angle, 0.2);
-        SetGyroYaw(angle * 0.2);
-        needRYP[1] = true;
-
-        // pitch
-        Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
         double nv = naL1MainLocal.Z * -0.5;
-        double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z + nv) - Math.PI * 0.5;
-        fbAngle = fbAngle * 1;
-        double cPitch = Math.Atan2(pGravityLocal.Y, pGravityLocal.Z) + Math.PI * 0.5;
+        if (!haveTarget) {
+          // yaw
+          var motherPoint = Vector3D.TransformNormal(followGetForward(), shipRevertMat);
+          var angle = Math.Atan2(motherPoint.Z, motherPoint.X);
+          angle = Math.PI * 0.5 + angle;
+          angle = utilMyClamp(angle, 0.2);
+          SetGyroYaw(angle * 0.2);
+          needRYP[1] = true;
 
-        SetGyroPitch((fbAngle - cPitch) * 0.3);
-        needRYP[2] = true;
+          // pitch
+          Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
+
+          double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z + nv) - Math.PI * 0.5;
+          fbAngle = fbAngle * 1;
+          double cPitch = Math.Atan2(pGravityLocal.Y, pGravityLocal.Z) + Math.PI * 0.5;
+          SetGyroPitch((fbAngle - cPitch) * 0.3);
+          needRYP[2] = true;
+        }
 
         // roll
         Vector3D graNoFB = Vector3D.Reject(pGravityLocal, new Vector3D(0, 0, 1));
