@@ -522,7 +522,7 @@ namespace kradar_p
     double axisBs = 350;
     double axisGr = 0.75;
     double axisBr = 800;
-    double axisCr = -0.1;
+    double axisCr = -0.13;
 /*     MAIN_CANNON_BS=350
     MAIN_CANNON_BR=800
     MAIN_CANNON_GR=0.75
@@ -530,6 +530,7 @@ namespace kradar_p
     MAIN_CANNON_CR=-0.1 */
     List<IMyUserControllableGun> shipWeapons = new List<IMyUserControllableGun>();
     // IMySmallGatlingGun    IMySmallMissileLauncher
+    double GYRO_RATE = 1;
     void balanceGravity()
     {
       bool[] needRYP = new bool[] { false, false, false };
@@ -550,13 +551,13 @@ namespace kradar_p
         Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
         Vector3D tarN = Vector3D.Normalize(HitPoint - shipPosition);
 		    tarN = Vector3D.Transform(tarN, shipRevertMat);
-        SetGyroYaw( (Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.3);
+        SetGyroYaw( (Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
         needRYP[1] = true;
-        SetGyroPitch((Math.Atan2(tarN.Z, tarN.Y) + Math.PI * 0.5) * 0.3);
+        SetGyroPitch((Math.Atan2(tarN.Z, tarN.Y) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
         needRYP[2] = true;
         
         // fire
-        shipWeapons.ForEach(w => w.ShootOnce());
+        if (tarN.Z < -0.99999) shipWeapons.ForEach(w => w.ShootOnce());
       }
 
       if (needBalance)
@@ -625,9 +626,9 @@ namespace kradar_p
         needRYP[0] = true;
       }
 
-      if (!needRYP[0]) SetGyroRoll(angleInput.Z * -0.1);
-      if (!needRYP[1]) SetGyroYaw(angleInput.Y * 0.1);
-      if (!needRYP[2]) SetGyroPitch(angleInput.X * -0.1);
+      if (!needRYP[0]) SetGyroRoll(angleInput.Z * -0.06 * GYRO_RATE);
+      if (!needRYP[1]) SetGyroYaw(angleInput.Y * 0.03 * GYRO_RATE);
+      if (!needRYP[2]) SetGyroPitch(angleInput.X * -0.03 * GYRO_RATE);
       if (needRYP.Any(b => b)) SetGyroOverride(true);
       else SetGyroOverride(false);
     }
@@ -690,17 +691,23 @@ namespace kradar_p
           t.ThrustOverridePercentage = (float)per;
         }
         double maxBack = 0;
-        foreach (IMyThrust t in shipThrusts[0][T_FRONT])
+        int tidx = T_FRONT;
+        Vector3D vidx = new Vector3D(0, 0, -1);
+        if (naL1BackOrFront == -1) {
+          tidx = T_BACK;
+          vidx = new Vector3D(0, 0, 1);
+        }
+        foreach (IMyThrust t in shipThrusts[0][tidx])
         {
           maxBack += t.MaxEffectiveThrust;
         }
         nf = shipMass * naL1BackLocal.Length();
         if (naL1BackLocal.Length() > 0.01)
-          dot = Vector3D.Dot(Vector3D.Normalize(naL1BackLocal), new Vector3D(0, 0, -1));
+          dot = Vector3D.Dot(Vector3D.Normalize(naL1BackLocal), vidx);
         per = 0;
         if (maxBack > 0) per = nf / maxBack;
         per *= dot;
-        foreach (IMyThrust t in shipThrusts[0][T_FRONT])
+        foreach (IMyThrust t in shipThrusts[0][tidx])
         {
           if (per == 0) t.Enabled = false;
           else
@@ -715,6 +722,11 @@ namespace kradar_p
         foreach (IMyThrust t in shipThrusts[0][T_UP])
         {
           t.ThrustOverridePercentage = 0;
+        }
+        if (moveInput.Z <= 0) {
+          shipThrusts[0][T_BACK].ForEach(t => t.Enabled = false);
+        } else {
+          shipThrusts[0][T_BACK].ForEach(t => t.Enabled = true);
         }
       }
     }
@@ -916,6 +928,7 @@ namespace kradar_p
     #region calcFollowNA
     Vector3D naL1MainLocal;
     Vector3D naL1BackLocal;
+    int naL1BackOrFront;
     void calcFollowNA()
     {
       if (!autoFollow && !autoDown) return;
@@ -944,10 +957,18 @@ namespace kradar_p
       var ba = Vector3D.Zero;
 
       // calc plan z need, reject and calc z-, z- use forward thruster. because z- means forward is bind to plane and z- will match forward thrust
-      if (Vector3D.Dot(planeNeed, shipMatrix.Forward) > 0)
+      naL1BackOrFront = shipThrusts[0][T_BACK].Count >= shipThrusts[0][T_FRONT].Count ? (shipThrusts[0][T_BACK].Count > 0 ? 1 : 0) : -1;
+      if (naL1BackOrFront == 1 && Vector3D.Dot(planeNeed, shipMatrix.Forward) > 0)
       {
         var pbn = Vector3D.Normalize(Vector3D.Reject(shipMatrix.Backward, pgn));
         var nna = Vector3D.Reject(na, pbn);
+        ba = na - nna;
+        na = na - ba;
+      }
+      if (naL1BackOrFront == -1 && Vector3D.Dot(planeNeed, shipMatrix.Forward) < 0)
+      {
+        var pfn = Vector3D.Normalize(Vector3D.Reject(shipMatrix.Forward, pgn));
+        var nna = Vector3D.Reject(na, pfn);
         ba = na - nna;
         na = na - ba;
       }
