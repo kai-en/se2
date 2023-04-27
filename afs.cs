@@ -957,7 +957,7 @@ namespace kradar_p
       var ba = Vector3D.Zero;
 
       // calc plan z need, reject and calc z-, z- use forward thruster. because z- means forward is bind to plane and z- will match forward thrust
-      naL1BackOrFront = shipThrusts[0][T_BACK].Count >= shipThrusts[0][T_FRONT].Count ? (shipThrusts[0][T_BACK].Count > 0 ? 1 : 0) : -1;
+      naL1BackOrFront = shipThrusts[0][T_FRONT].Count >= shipThrusts[0][T_BACK].Count ? (shipThrusts[0][T_FRONT].Count > 0 ? 1 : 0) : -1;
       if (naL1BackOrFront == 1 && Vector3D.Dot(planeNeed, shipMatrix.Forward) > 0)
       {
         var pbn = Vector3D.Normalize(Vector3D.Reject(shipMatrix.Backward, pgn));
