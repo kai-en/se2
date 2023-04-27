@@ -550,10 +550,9 @@ namespace kradar_p
         Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
         Vector3D tarN = Vector3D.Normalize(HitPoint - shipPosition);
 		    tarN = Vector3D.Transform(tarN, shipRevertMat);
-        debug("atn: " + display3D(tarN));
-        SetGyroYaw(tarN.X * 0.3);
+        SetGyroYaw( (Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.3);
         needRYP[1] = true;
-        SetGyroPitch(tarN.Y * 0.3);
+        SetGyroPitch((Math.Atan2(tarN.Z, tarN.Y) + Math.PI * 0.5) * 0.3);
         needRYP[2] = true;
         
         // fire
