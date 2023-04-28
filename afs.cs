@@ -580,6 +580,12 @@ namespace kradar_p
       {
         Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
         Vector3D sv = shipVelLocalGet();
+        if (naL1BackOrFront == 1 && sv.Z < 0) {
+          sv.Z = 0;
+        }
+        if (naL1BackOrFront == -1 && sv.Z > 0) {
+          sv.Z = 0;
+        }
         double nv = sv.Z * -0.5;
         nv = utilMyClamp(nv, sideALimit);
         double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z + nv) - Math.PI * 0.5;
@@ -674,6 +680,7 @@ namespace kradar_p
         {
           t.ThrustOverridePercentage = (float)per;
         }
+        
       }
       else if (autoFollow)
       {
@@ -690,6 +697,21 @@ namespace kradar_p
         {
           t.ThrustOverridePercentage = (float)per;
         }
+      }
+      else
+      {
+        foreach (IMyThrust t in shipThrusts[0][T_UP])
+        {
+          t.ThrustOverridePercentage = 0;
+        }
+        if (moveInput.Z <= 0) {
+          shipThrusts[0][T_BACK].ForEach(t => t.Enabled = false);
+        } else {
+          shipThrusts[0][T_BACK].ForEach(t => t.Enabled = true);
+        }
+      }
+      
+      if (autoFollow || autoDown) {
         double maxBack = 0;
         int tidx = T_FRONT;
         Vector3D vidx = new Vector3D(0, 0, -1);
@@ -715,18 +737,6 @@ namespace kradar_p
             t.Enabled = true;
             t.ThrustOverridePercentage = (float)per;
           }
-        }
-      }
-      else
-      {
-        foreach (IMyThrust t in shipThrusts[0][T_UP])
-        {
-          t.ThrustOverridePercentage = 0;
-        }
-        if (moveInput.Z <= 0) {
-          shipThrusts[0][T_BACK].ForEach(t => t.Enabled = false);
-        } else {
-          shipThrusts[0][T_BACK].ForEach(t => t.Enabled = true);
         }
       }
     }
