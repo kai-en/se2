@@ -580,10 +580,10 @@ namespace kradar_p
       {
         Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
         Vector3D sv = shipVelLocalGet();
-        if (naL1BackOrFront == 1 && sv.Z < 0) {
+        if (naL1BackOrFront == 1 && sv.Z > 0) {
           sv.Z = 0;
         }
-        if (naL1BackOrFront == -1 && sv.Z > 0) {
+        if (naL1BackOrFront == -1 && sv.Z < 0) {
           sv.Z = 0;
         }
         double nv = sv.Z * -0.5;
@@ -710,7 +710,8 @@ namespace kradar_p
           shipThrusts[0][T_BACK].ForEach(t => t.Enabled = true);
         }
       }
-      
+
+      bool needOpZ = Math.Abs(moveInput.Z) > 0.01;
       if (autoFollow || autoDown) {
         double maxBack = 0;
         int tidx = T_FRONT;
@@ -723,21 +724,35 @@ namespace kradar_p
         {
           maxBack += t.MaxEffectiveThrust;
         }
-        nf = shipMass * naL1BackLocal.Length();
+        var nf = shipMass * naL1BackLocal.Length();
+        double dot = 0;
         if (naL1BackLocal.Length() > 0.01)
           dot = Vector3D.Dot(Vector3D.Normalize(naL1BackLocal), vidx);
-        per = 0;
+        double per = 0;
         if (maxBack > 0) per = nf / maxBack;
         per *= dot;
+        
         foreach (IMyThrust t in shipThrusts[0][tidx])
         {
-          if (per == 0) t.Enabled = false;
-          else
-          {
+          if (needOpZ) {
             t.Enabled = true;
-            t.ThrustOverridePercentage = (float)per;
+            t.ThrustOverridePercentage = 0;
+          } else {
+            if (per == 0)  {
+              t.Enabled = false;
+            }
+            else
+            {
+              t.Enabled = true;
+              t.ThrustOverridePercentage = (float)per;
+            }
           }
         }
+      }
+
+      if (needOpZ) {
+        shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
+        shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
       }
     }
     #endregion controlThrust
@@ -942,23 +957,30 @@ namespace kradar_p
     void calcFollowNA()
     {
       if (!autoFollow && !autoDown) return;
-      Vector3D pd = motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
-      if (pd.Length() < 20) pd = Vector3D.Normalize(pd) * Math.Log(pd.Length()) * 0.5;
-      else pd = Vector3D.Normalize(pd) * Math.Sqrt(pd.Length()) * 1.5;
-      Vector3D nv = motherVelocity + pd;
-      Vector3D na = (nv - shipVelGet()) * 0.5;
-      double ma = shipMaxForceGet() / shipMass;
-      double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
-      if (na.Length() > sideALimit) na *= sideALimit / na.Length();
+      Vector3D na = Vector3D.Zero;
+      if (autoFollow) {
+        Vector3D pd = motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
+        if (pd.Length() < 20) pd = Vector3D.Normalize(pd) * Math.Log(pd.Length()) * 0.5;
+        else pd = Vector3D.Normalize(pd) * Math.Sqrt(pd.Length()) * 1.5;
+        Vector3D nv = motherVelocity + pd;
+        na = (nv - shipVelGet()) * 0.5;
+        double ma = shipMaxForceGet() / shipMass;
+        double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
+        if (na.Length() > sideALimit) na *= sideALimit / na.Length();
 
-      // avoid 
-      foreach (var a in avoidMap)
-      {
-        var tpd = shipPosition - a.Value;
-        if (tpd.Length() >= 50) continue;
-        var al = MathHelper.Clamp(50 - tpd.Length(), 0, 10) * 2.0;
-        var aa = tpd / tpd.Length() * al;
-        if(fpIdx == 0)na += aa;
+        // avoid 
+        foreach (var a in avoidMap)
+        {
+          var tpd = shipPosition - a.Value;
+          if (tpd.Length() >= 50) continue;
+          var al = MathHelper.Clamp(50 - tpd.Length(), 0, 10) * 2.0;
+          var aa = tpd / tpd.Length() * al;
+          if(fpIdx == 0)na += aa;
+        }
+      }
+
+      if (autoDown) {
+        na = shipVelGet() * -0.5;
       }
 
       // calc plane need (reject gravity dir)
@@ -987,6 +1009,7 @@ namespace kradar_p
 
       naL1MainLocal = Vector3D.TransformNormal(na, shipRevertMat);
       naL1BackLocal = Vector3D.TransformNormal(ba, shipRevertMat);
+
       debug("m: " + display3D(naL1MainLocal));
       debug("b: " + display3D(naL1BackLocal));
     }
