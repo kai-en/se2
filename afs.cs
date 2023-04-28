@@ -977,6 +977,20 @@ namespace kradar_p
           var aa = tpd / tpd.Length() * al;
           if(fpIdx == 0)na += aa;
         }
+
+        bool needAvoidMother = false;
+        if (isDocking && fpIdx<= fpList.Count - 2) needAvoidMother = true;
+        if (!isDocking && fpIdx < fpList.Count - 2) needAvoidMother = true;
+        if (needAvoidMother) {
+          double range = fpList[fpList.Count - 2].Length();
+          range *= 0.8;
+          var tpd = shipPosition - motherPosition;
+          if (tpd.Length() < range) {
+            var al = MathHelper.Clamp(range - tpd.Length(), 0, 10) * 2.0;
+            var aa = Vector3D.Normalize(tpd) * al;
+            na += aa;
+          }
+        }
       }
 
       if (autoDown) {
