@@ -580,6 +580,12 @@ namespace kradar_p
       {
         Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
         Vector3D sv = shipVelLocalGet();
+        if (naL1BackOrFront == 1 && sv.Z > 0) {
+          sv.Z = 0;
+        }
+        if (naL1BackOrFront == -1 && sv.Z < 0) {
+          sv.Z = 0;
+        }
         double nv = sv.Z * -0.5;
         nv = utilMyClamp(nv, sideALimit);
         double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z + nv) - Math.PI * 0.5;
@@ -674,6 +680,7 @@ namespace kradar_p
         {
           t.ThrustOverridePercentage = (float)per;
         }
+        
       }
       else if (autoFollow)
       {
@@ -690,32 +697,6 @@ namespace kradar_p
         {
           t.ThrustOverridePercentage = (float)per;
         }
-        double maxBack = 0;
-        int tidx = T_FRONT;
-        Vector3D vidx = new Vector3D(0, 0, -1);
-        if (naL1BackOrFront == -1) {
-          tidx = T_BACK;
-          vidx = new Vector3D(0, 0, 1);
-        }
-        foreach (IMyThrust t in shipThrusts[0][tidx])
-        {
-          maxBack += t.MaxEffectiveThrust;
-        }
-        nf = shipMass * naL1BackLocal.Length();
-        if (naL1BackLocal.Length() > 0.01)
-          dot = Vector3D.Dot(Vector3D.Normalize(naL1BackLocal), vidx);
-        per = 0;
-        if (maxBack > 0) per = nf / maxBack;
-        per *= dot;
-        foreach (IMyThrust t in shipThrusts[0][tidx])
-        {
-          if (per == 0) t.Enabled = false;
-          else
-          {
-            t.Enabled = true;
-            t.ThrustOverridePercentage = (float)per;
-          }
-        }
       }
       else
       {
@@ -728,6 +709,50 @@ namespace kradar_p
         } else {
           shipThrusts[0][T_BACK].ForEach(t => t.Enabled = true);
         }
+      }
+
+      bool needOpZ = Math.Abs(moveInput.Z) > 0.01;
+      if (autoFollow || autoDown) {
+        double maxBack = 0;
+        int tidx = T_FRONT;
+        Vector3D vidx = new Vector3D(0, 0, -1);
+        if (naL1BackOrFront == -1) {
+          tidx = T_BACK;
+          vidx = new Vector3D(0, 0, 1);
+        }
+        foreach (IMyThrust t in shipThrusts[0][tidx])
+        {
+          maxBack += t.MaxEffectiveThrust;
+        }
+        var nf = shipMass * naL1BackLocal.Length();
+        double dot = 0;
+        if (naL1BackLocal.Length() > 0.01)
+          dot = Vector3D.Dot(Vector3D.Normalize(naL1BackLocal), vidx);
+        double per = 0;
+        if (maxBack > 0) per = nf / maxBack;
+        per *= dot;
+        
+        foreach (IMyThrust t in shipThrusts[0][tidx])
+        {
+          if (needOpZ) {
+            t.Enabled = true;
+            t.ThrustOverridePercentage = 0;
+          } else {
+            if (per == 0)  {
+              t.Enabled = false;
+            }
+            else
+            {
+              t.Enabled = true;
+              t.ThrustOverridePercentage = (float)per;
+            }
+          }
+        }
+      }
+
+      if (needOpZ) {
+        shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
+        shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
       }
     }
     #endregion controlThrust
@@ -932,23 +957,47 @@ namespace kradar_p
     void calcFollowNA()
     {
       if (!autoFollow && !autoDown) return;
-      Vector3D pd = motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
-      if (pd.Length() < 20) pd = Vector3D.Normalize(pd) * Math.Log(pd.Length()) * 0.5;
-      else pd = Vector3D.Normalize(pd) * Math.Sqrt(pd.Length()) * 1.5;
-      Vector3D nv = motherVelocity + pd;
-      Vector3D na = (nv - shipVelGet()) * 0.5;
-      double ma = shipMaxForceGet() / shipMass;
-      double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
-      if (na.Length() > sideALimit) na *= sideALimit / na.Length();
+      Vector3D na = Vector3D.Zero;
+      if (autoFollow) {
+        Vector3D pd = motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
+        if (pd.Length() < 20) pd = Vector3D.Normalize(pd) * Math.Log(pd.Length()) * 0.5;
+        else pd = Vector3D.Normalize(pd) * Math.Sqrt(pd.Length()) * 1.5;
+        Vector3D nv = motherVelocity + pd;
+        na = (nv - shipVelGet()) * 0.5;
+        double ma = shipMaxForceGet() / shipMass;
+        double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
+        if (na.Length() > sideALimit) na *= sideALimit / na.Length();
 
-      // avoid 
-      foreach (var a in avoidMap)
-      {
-        var tpd = shipPosition - a.Value;
-        if (tpd.Length() >= 50) continue;
-        var al = MathHelper.Clamp(50 - tpd.Length(), 0, 10) * 2.0;
-        var aa = tpd / tpd.Length() * al;
-        if(fpIdx == 0)na += aa;
+        // avoid 
+        foreach (var a in avoidMap)
+        {
+          var tpd = shipPosition - a.Value;
+          if (tpd.Length() >= 50) continue;
+          var al = MathHelper.Clamp(50 - tpd.Length(), 0, 10) * 2.0;
+          var aa = tpd / tpd.Length() * al;
+          if(fpIdx == 0)na += aa;
+        }
+
+        bool needAvoidMother = false;
+        if (isDocking && fpIdx<= fpList.Count - 2) needAvoidMother = true;
+        if (!isDocking && fpIdx < fpList.Count - 2) needAvoidMother = true;
+        if (needAvoidMother) {
+          double range = fpList[fpList.Count - 2].Length();
+          range *= 0.8;
+          var tpd = shipPosition - motherPosition;
+          var tpdn = Vector3D.Normalize(tpd);
+          double av = Vector3D.Dot(motherVelocity - shipVelGet(), tpdn);
+          if (av > 0) range += av * 5;
+          if (tpd.Length() < range) {
+            var al = MathHelper.Clamp(range - tpd.Length(), 0, 10) * 2.0;
+            var aa = tpdn * al;
+            na += aa;
+          }
+        }
+      }
+
+      if (autoDown) {
+        na = shipVelGet() * -0.5;
       }
 
       // calc plane need (reject gravity dir)
@@ -977,6 +1026,7 @@ namespace kradar_p
 
       naL1MainLocal = Vector3D.TransformNormal(na, shipRevertMat);
       naL1BackLocal = Vector3D.TransformNormal(ba, shipRevertMat);
+
       debug("m: " + display3D(naL1MainLocal));
       debug("b: " + display3D(naL1BackLocal));
     }
