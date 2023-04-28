@@ -985,9 +985,12 @@ namespace kradar_p
           double range = fpList[fpList.Count - 2].Length();
           range *= 0.8;
           var tpd = shipPosition - motherPosition;
+          var tpdn = Vector3D.Normalize(tpd);
+          double av = Vector3D.Dot(motherVelocity - shipVelGet(), tpdn);
+          if (av > 0) range += av * 5;
           if (tpd.Length() < range) {
             var al = MathHelper.Clamp(range - tpd.Length(), 0, 10) * 2.0;
-            var aa = Vector3D.Normalize(tpd) * al;
+            var aa = tpdn * al;
             na += aa;
           }
         }
