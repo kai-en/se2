@@ -170,3 +170,10 @@ add velocity
 
 # 0409
 - msc up offset_y
+
+
+# 0429
+- control模式 thrust不听控制？
+- l2dam 在有俯仰时考虑俯仰
+- down模式 矢量喷口没按下降1.5计算
+- standby 模式关闭l2推力

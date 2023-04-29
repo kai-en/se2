@@ -447,11 +447,18 @@ namespace kradar_p
     #region parseInput
     Vector3D angleInput = Vector3D.Zero;
     Vector3D moveInput = Vector3D.Zero;
+    Vector3D moveInputDam = Vector3D.Zero;
+    bool shipDam = true;
     void parseInput()
     {
       if (mainShipCtrl == null) return;
       angleInput = new Vector3D(mainShipCtrl.RotationIndicator.X, mainShipCtrl.RotationIndicator.Y, mainShipCtrl.RollIndicator);
       moveInput = mainShipCtrl.MoveIndicator;
+      moveInputDam = moveInput;
+      shipDam = mainShipCtrl.DampenersOverride;
+      if (shipDam) {
+        moveInputDam += shipVelLocalGet() * -0.1;
+      }
     }
     #endregion parseInput
 
@@ -466,12 +473,19 @@ namespace kradar_p
     bool docked = false;
     void decideMode()
     {
-      shortClick(ref spaceStart, moveInput.Y, true, 0.5, 0.1, ref autoBalance);
+      bool turnOn = shortClick(ref spaceStart, moveInput.Y, true, 0.5, 0.1, ref autoBalance);
+      if (turnOn) {
+        shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
+        shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
+      }
 
       if (moveInput.Y < -0.5) autoBalance = false;
       if (Math.Abs(angleInput.Z) > 0.5) autoBalance = false;
 
-      shortClick(ref downStart, moveInput.Y, false, -0.5, -0.1, ref autoDown);
+      if(shipDam)
+        shortClick(ref downStart, moveInput.Y, false, -0.5, -0.1, ref autoDown);
+      else autoDown = false;
+      
       if (moveInput.Y > 0.5) autoDown = false;
       if (Math.Abs(angleInput.Z) > 0.5) autoDown = false;
 
@@ -528,7 +542,7 @@ namespace kradar_p
         }
       }
     }
-    void shortClick(ref long si, double inp, bool isP, double tl, double dl, ref bool mode)
+    bool shortClick(ref long si, double inp, bool isP, double tl, double dl, ref bool mode)
     {
       if (si == 0)
       {
@@ -551,9 +565,11 @@ namespace kradar_p
           {
             mode = true;
             si = 0;
+            return true;
           }
         }
       }
+      return false;
     }
     #endregion decideMode
 
@@ -576,11 +592,15 @@ namespace kradar_p
     {
       if (vtRotors.Count > 0) {
         // vtRotors
-        Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
-        double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z) - Math.PI * 0.5;
+        float fbAngle = 0;
+        if (pGravity.Length() > 0.01) {
+          Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
+          fbAngle = (float)(Math.Atan2(-graNoLR.Y, -graNoLR.Z) - Math.PI * 0.5);
+        }
         foreach( var vr in vtRotors) {
-          debug("vr: " + vr.rotor.Angle);
-          // r.SetValueFloat("Velocity", (float)pid.Filter(modangle(ta + need - r.Angle),2, r.TargetVelocityRPM));
+          float v = vr.isP ? fbAngle + vr.rotor.Angle : fbAngle - vr.rotor.Angle;
+          if (vr.isP) v = -v;
+          vr.rotor.SetValueFloat("Velocity", v * 10f);
         }
       }
 
@@ -713,6 +733,31 @@ namespace kradar_p
     #region controlThrust
     void controlThrust()
     {
+      Vector3D l2Provide = Vector3D.Zero;
+      if (shipThrusts[1][0].Count > 0 && pGravity.Length() > 0.01) {
+        var pgn = Vector3D.Normalize(pGravity);
+        double mf = 0;
+        foreach(var t in shipThrusts[1][0]) {
+          mf += t.MaxEffectiveThrust * Vector3D.Dot(t.WorldMatrix.Forward, pgn);
+        }
+        float per = 0;
+        Vector3D pNoLR = -Vector3D.Reject(pGravityLocal, new Vector3D(1,0,0));
+        Vector3D pgln = Vector3D.Normalize(pNoLR);
+        Vector3D mi = pgln * Vector3D.Dot(moveInputDam, pgln);
+        pNoLR += mi;
+        double needF = 0;
+        if (pNoLR.Y > 0) needF = shipMass * pNoLR.Length();
+        if (mf > 0) {
+          per = (float)(needF / mf);
+        }
+        if (per > 1) per = 1;
+        debug("l2per: " + per);
+        foreach(var t in shipThrusts[1][0]) {
+          t.Enabled = per > 0;
+          t.ThrustOverridePercentage = per;
+          l2Provide += (t.MaxEffectiveThrust * per) * t.WorldMatrix.Backward;
+        }
+      }
       if (autoDown)
       {
         double vy = shipVelLocalGet().Y;
@@ -801,10 +846,6 @@ namespace kradar_p
         }
       }
 
-      if (needOpZ) {
-        shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
-        shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
-      }
     }
     #endregion controlThrust
 
