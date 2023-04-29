@@ -44,7 +44,7 @@ namespace kradar_p
 
       // decide mode
       decideMode();
-      debug("ab: " + autoBalance + " ad: " + autoDown + " af: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx);
+      debug("ab: " + autoBalance + " ad: " + autoDown + " acc: " + isAcc + " af: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx);
 
       if (!isStandBy && !docked)
       {
@@ -455,12 +455,9 @@ namespace kradar_p
       angleInput = new Vector3D(mainShipCtrl.RotationIndicator.X, mainShipCtrl.RotationIndicator.Y, mainShipCtrl.RollIndicator);
       moveInput = mainShipCtrl.MoveIndicator;
       moveInputDam = moveInput;
-      shipDam = mainShipCtrl.DampenersOverride;
-      if (shipDam) {
-        var sv = shipVelLocalGet();
-        if (sv.Z < 0) sv.Z = 0;
-        moveInputDam += sv * -0.1;
-      }
+      var sv = shipVelLocalGet();
+      sv.Z = 0;
+      moveInputDam += sv * -0.1;
     }
     #endregion parseInput
 
@@ -473,8 +470,12 @@ namespace kradar_p
     bool isDocking = false;
     bool needBalance = false;
     bool docked = false;
+    bool isAcc = false;
+    long backStart = 0;
     void decideMode()
     {
+      shortClick(ref backStart, moveInput.Z, true, 0.5, 0.1, ref isAcc);
+
       bool turnOn = shortClick(ref spaceStart, moveInput.Y, true, 0.5, 0.1, ref autoBalance);
       if (turnOn) {
         shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
@@ -484,7 +485,7 @@ namespace kradar_p
       if (moveInput.Y < -0.5) autoBalance = false;
       if (Math.Abs(angleInput.Z) > 0.5) autoBalance = false;
 
-      if(shipDam)
+      if(shipDam && !isAcc)
         shortClick(ref downStart, moveInput.Y, false, -0.5, -0.1, ref autoDown);
       else autoDown = false;
       
@@ -573,6 +574,7 @@ namespace kradar_p
       }
       return false;
     }
+    
     #endregion decideMode
 
     #region balanceGravity
@@ -802,16 +804,45 @@ namespace kradar_p
           t.ThrustOverridePercentage = (float)per;
         }
       }
+      else if (isAcc) {
+        if (mainShipCtrl.DampenersOverride) {
+          var accMove = moveInput;
+          accMove -= shipVelLocalGet() * 0.1;
+          bool isp = accMove.Z > 0;
+          double mf = 0;
+          foreach(var t in shipThrusts[0][isp ? T_BACK : T_FRONT]) {
+            mf += t.MaxEffectiveThrust;
+          }
+          var nf = shipMass * accMove.Z * (isp ? 1 : -1);
+          float per = 0;
+          if(mf > 0) {
+            per = (float)(nf / mf);
+          }
+          foreach(var t in shipThrusts[0][isp ? T_BACK : T_FRONT]) {
+            if(per == 0) t.Enabled = false;
+            else t.Enabled = true;
+            t.ThrustOverridePercentage = per;
+          }
+          foreach(var t in shipThrusts[0][isp ? T_FRONT : T_BACK]) {
+            t.Enabled = false;
+            t.ThrustOverridePercentage = 0;
+          }
+        } else {
+          shipThrusts[0][T_FRONT].ForEach(t => t.ThrustOverridePercentage = 0);
+          shipThrusts[0][T_BACK].ForEach(t => t.ThrustOverridePercentage = 0);
+        }
+      }
       else
       {
         foreach (IMyThrust t in shipThrusts[0][T_UP])
         {
           t.ThrustOverridePercentage = 0;
         }
-        if (moveInput.Z <= 0) {
-          shipThrusts[0][T_BACK].ForEach(t => t.Enabled = false);
+        shipThrusts[0][T_FRONT].ForEach(t => t.ThrustOverridePercentage = 0);
+        if (moveInput.Z <= 0 && !isAcc) {
+          shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = false;t.ThrustOverridePercentage = 0;});
         } else {
-          shipThrusts[0][T_BACK].ForEach(t => t.Enabled = true);
+          shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = true;t.ThrustOverridePercentage = 0;});
         }
       }
 
