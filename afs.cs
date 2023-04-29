@@ -185,6 +185,7 @@ namespace kradar_p
         shipGyros.Clear();
         gyroFields.Clear();
         gyroFactors.Clear();
+        vtRotors.Clear();
       }
 
       if (shipThrusts.Count == 0) getThrusts();
@@ -341,7 +342,7 @@ namespace kradar_p
     int mafInd = 0;
     string VT_TAG = "[VT]";
     class VTRotor {
-      public IMyMotorBase rotor;
+      public IMyMotorStator rotor;
       public bool isP;
       public float ps,pe,ns,ne;
     }
@@ -396,8 +397,8 @@ namespace kradar_p
       shipThrusts.Add(l1Thrusts);
       GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks, b => b.CubeGrid != Me.CubeGrid);
       l1Thrusts.Add(blocks);
-      List<IMyMotorBase> rotors = new List<IMyMotorBase>();
-      GridTerminalSystem.GetBlocksOfType<IMyMotorBase>(rotors, b => b.CubeGrid == Me.CubeGrid && ((IMyTerminalBlock)b).CustomName.Contains(VT_TAG));
+      List<IMyMotorStator> rotors = new List<IMyMotorStator>();
+      GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(rotors, b => b.CubeGrid == Me.CubeGrid && ((IMyTerminalBlock)b).CustomName.Contains(VT_TAG));
       foreach( var r in rotors) {
         VTRotor vr = new VTRotor();
         vr.rotor = r;
@@ -573,6 +574,16 @@ namespace kradar_p
     double GYRO_RATE = 1;
     void balanceGravity()
     {
+      if (vtRotors.Count > 0) {
+        // vtRotors
+        Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
+        double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z) - Math.PI * 0.5;
+        foreach( var vr in vtRotors) {
+          debug("vr: " + vr.rotor.Angle);
+          // r.SetValueFloat("Velocity", (float)pid.Filter(modangle(ta + need - r.Angle),2, r.TargetVelocityRPM));
+        }
+      }
+
       bool[] needRYP = new bool[] { false, false, false };
       if (mainShipCtrl == null) return;
       if (pGravity.Length() < 0.01) return;
