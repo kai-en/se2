@@ -40,6 +40,7 @@ namespace kradar_p
 
       // parse input
       parseInput();
+      debug("vr: " + vtRotors.Count + " " + shipThrusts[1][0].Count);
 
       // decide mode
       decideMode();
@@ -338,6 +339,13 @@ namespace kradar_p
     const int T_FRONT = 4;
     const int T_BACK = 5;
     int mafInd = 0;
+    string VT_TAG = "[VT]";
+    class VTRotor {
+      public IMyMotorBase rotor;
+      public bool isP;
+      public float ps,pe,ns,ne;
+    }
+    List<VTRotor> vtRotors = new List<VTRotor>();
     void getThrusts()
     {
       List<List<IMyThrust>> l0Thrusts = new List<List<IMyThrust>>();
@@ -382,6 +390,38 @@ namespace kradar_p
         }
         double maf = mafThusts.Max();
         mafInd = mafThusts.IndexOf(maf);
+      }
+
+      List<List<IMyThrust>> l1Thrusts = new List<List<IMyThrust>>();
+      shipThrusts.Add(l1Thrusts);
+      GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks, b => b.CubeGrid != Me.CubeGrid);
+      l1Thrusts.Add(blocks);
+      List<IMyMotorBase> rotors = new List<IMyMotorBase>();
+      GridTerminalSystem.GetBlocksOfType<IMyMotorBase>(rotors, b => b.CubeGrid == Me.CubeGrid && ((IMyTerminalBlock)b).CustomName.Contains(VT_TAG));
+      foreach( var r in rotors) {
+        VTRotor vr = new VTRotor();
+        vr.rotor = r;
+        MyIni vi = new MyIni();
+        vi.TryParse(((IMyTerminalBlock)r).CustomData);
+        String clockWise = vi.Get("VTRotor", "ClockWise").ToString();
+        if (clockWise == "") {
+          clockWise = "T";
+          vi.Set("VTRotor", "ClockWise", clockWise);
+          ((IMyTerminalBlock)r).CustomData = vi.ToString();
+        }
+        String pspensne = vi.Get("VTRotor", "PsPeNsNe").ToString();
+        if (pspensne == "") {
+          pspensne = "0,90,0,-90";
+          vi.Set("VTRotor", "PsPeNsNe", pspensne);
+          ((IMyTerminalBlock)r).CustomData = vi.ToString();
+        }
+        vr.isP = clockWise.Equals("T");
+        String[] pa = pspensne.Split(',');
+        float.TryParse(pa[0], out vr.ps);
+        float.TryParse(pa[1], out vr.pe);
+        float.TryParse(pa[2], out vr.ns);
+        float.TryParse(pa[3], out vr.ne);
+        vtRotors.Add(vr);
       }
     }
     int thrustMaxDir()
@@ -580,10 +620,10 @@ namespace kradar_p
       {
         Vector3D graNoLR = Vector3D.Reject(pGravityLocal, new Vector3D(1, 0, 0));
         Vector3D sv = shipVelLocalGet();
-        if (naL1BackOrFront == 1 && sv.Z > 0) {
+        if (nabfHave[0] && sv.Z > 0) {
           sv.Z = 0;
         }
-        if (naL1BackOrFront == -1 && sv.Z < 0) {
+        if (nabfHave[1] && sv.Z < 0) {
           sv.Z = 0;
         }
         double nv = sv.Z * -0.5;
@@ -716,7 +756,7 @@ namespace kradar_p
         double maxBack = 0;
         int tidx = T_FRONT;
         Vector3D vidx = new Vector3D(0, 0, -1);
-        if (naL1BackOrFront == -1) {
+        if (naL1BackLocal.Z > 0) {
           tidx = T_BACK;
           vidx = new Vector3D(0, 0, 1);
         }
@@ -953,7 +993,7 @@ namespace kradar_p
     #region calcFollowNA
     Vector3D naL1MainLocal;
     Vector3D naL1BackLocal;
-    int naL1BackOrFront;
+    bool[] nabfHave = new bool[]{false, false};
     void calcFollowNA()
     {
       if (!autoFollow && !autoDown) return;
@@ -1006,15 +1046,16 @@ namespace kradar_p
       var ba = Vector3D.Zero;
 
       // calc plan z need, reject and calc z-, z- use forward thruster. because z- means forward is bind to plane and z- will match forward thrust
-      naL1BackOrFront = shipThrusts[0][T_FRONT].Count >= shipThrusts[0][T_BACK].Count ? (shipThrusts[0][T_FRONT].Count > 0 ? 1 : 0) : -1;
-      if (naL1BackOrFront == 1 && Vector3D.Dot(planeNeed, shipMatrix.Forward) > 0)
+      nabfHave[0] = shipThrusts[0][T_FRONT].Count > 0;
+      nabfHave[1] = shipThrusts[0][T_BACK].Count > 0;
+      if (nabfHave[0] && Vector3D.Dot(planeNeed, shipMatrix.Forward) > 0)
       {
         var pbn = Vector3D.Normalize(Vector3D.Reject(shipMatrix.Backward, pgn));
         var nna = Vector3D.Reject(na, pbn);
         ba = na - nna;
         na = na - ba;
       }
-      if (naL1BackOrFront == -1 && Vector3D.Dot(planeNeed, shipMatrix.Forward) < 0)
+      if (nabfHave[1] && Vector3D.Dot(planeNeed, shipMatrix.Forward) < 0)
       {
         var pfn = Vector3D.Normalize(Vector3D.Reject(shipMatrix.Forward, pgn));
         var nna = Vector3D.Reject(na, pfn);
