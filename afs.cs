@@ -457,7 +457,9 @@ namespace kradar_p
       moveInputDam = moveInput;
       shipDam = mainShipCtrl.DampenersOverride;
       if (shipDam) {
-        moveInputDam += shipVelLocalGet() * -0.1;
+        var sv = shipVelLocalGet();
+        if (sv.Z < 0) sv.Z = 0;
+        moveInputDam += sv * -0.1;
       }
     }
     #endregion parseInput
@@ -744,8 +746,9 @@ namespace kradar_p
         Vector3D pNoLR = -Vector3D.Reject(pGravityLocal, new Vector3D(1,0,0));
         Vector3D pgln = Vector3D.Normalize(pNoLR);
         Vector3D mi = pgln * Vector3D.Dot(moveInputDam, pgln);
-        pNoLR += mi;
+        pNoLR += mi * 5.0;
         double needF = 0;
+
         if (pNoLR.Y > 0) needF = shipMass * pNoLR.Length();
         if (mf > 0) {
           per = (float)(needF / mf);
