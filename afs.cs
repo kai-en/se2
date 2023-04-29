@@ -748,6 +748,11 @@ namespace kradar_p
         Vector3D mi = pgln * Vector3D.Dot(moveInputDam, pgln);
         pNoLR += mi * 5.0;
         double needF = 0;
+        if (autoDown) {
+          var vd = -1.5 - shipVelLocalGet().Y;
+          var naDown = vd * 0.8;
+          pNoLR.Y += naDown;
+        }
 
         if (pNoLR.Y > 0) needF = shipMass * pNoLR.Length();
         if (mf > 0) {
@@ -958,6 +963,7 @@ namespace kradar_p
           shipThrusts[0][T_UP].ForEach(t => t.Enabled = false);
           shipThrusts[0][T_LEFT].ForEach(t => t.Enabled = false);
           shipThrusts[0][T_RIGHT].ForEach(t => t.Enabled = false);
+          shipThrusts[1][0].ForEach(t => t.Enabled = false);
           SetGyroOverride(false);
           break;
         case "STANDBYOFF":
@@ -965,6 +971,7 @@ namespace kradar_p
           autoDown = false;
           setDampenersOverride(mainShipCtrl, true);
           shipThrusts[0].ForEach(l => l.ForEach(t => t.Enabled = true));
+          shipThrusts[1][0].ForEach(t => t.Enabled = true);
           break;
       }
       if (isStandBy) return;
