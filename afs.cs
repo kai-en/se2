@@ -474,7 +474,12 @@ namespace kradar_p
     long backStart = 0;
     void decideMode()
     {
+      bool lastAcc = isAcc;
       shortClick(ref backStart, moveInput.Z, true, 0.5, 0.1, ref isAcc);
+      if (lastAcc && !isAcc) {
+        shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
+        shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
+      }
 
       bool turnOn = shortClick(ref spaceStart, moveInput.Y, true, 0.5, 0.1, ref autoBalance);
       if (turnOn) {
@@ -755,6 +760,12 @@ namespace kradar_p
           var naDown = vd * 0.8;
           pNoLR.Y += naDown;
         }
+        if (autoFollow) {
+          double dot = 0;
+          if (naL1MainLocal.Length() > 0.01)
+            dot = Vector3D.Dot(naL1MainLocal, pgln);
+          pNoLR.Y = dot;
+        }
 
         if (pNoLR.Y > 0) needF = shipMass * pNoLR.Length();
         if (mf > 0) {
@@ -850,9 +861,11 @@ namespace kradar_p
       if (autoFollow || autoDown) {
         double maxBack = 0;
         int tidx = T_FRONT;
+        int tOther = T_BACK;
         Vector3D vidx = new Vector3D(0, 0, -1);
         if (naL1BackLocal.Z > 0) {
           tidx = T_BACK;
+          tOther = T_FRONT;
           vidx = new Vector3D(0, 0, 1);
         }
         foreach (IMyThrust t in shipThrusts[0][tidx])
@@ -869,19 +882,19 @@ namespace kradar_p
         
         foreach (IMyThrust t in shipThrusts[0][tidx])
         {
-          if (needOpZ) {
-            t.Enabled = true;
-            t.ThrustOverridePercentage = 0;
-          } else {
-            if (per == 0)  {
-              t.Enabled = false;
-            }
-            else
-            {
-              t.Enabled = true;
-              t.ThrustOverridePercentage = (float)per;
-            }
+          if (per == 0)  {
+            t.Enabled = false;
           }
+          else
+          {
+            t.Enabled = true;
+            t.ThrustOverridePercentage = (float)per;
+          }
+        }
+        foreach (IMyThrust t in shipThrusts[0][tOther])
+        {
+          t.Enabled = false;
+          t.ThrustOverridePercentage = 0;
         }
       }
 
@@ -1100,6 +1113,7 @@ namespace kradar_p
         double ma = shipMaxForceGet() / shipMass;
         double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
         if (na.Length() > sideALimit) na *= sideALimit / na.Length();
+        debug("nas0: " + display3D(Vector3D.TransformNormal(na, shipRevertMat)));
 
         // avoid 
         foreach (var a in avoidMap)
@@ -1138,7 +1152,7 @@ namespace kradar_p
       var planeNeed = Vector3D.Reject(na, pgn);
       var ba = Vector3D.Zero;
 
-      // calc plan z need, reject and calc z-, z- use forward thruster. because z- means forward is bind to plane and z- will match forward thrust
+      // calc plan z need
       nabfHave[0] = shipThrusts[0][T_FRONT].Count > 0;
       nabfHave[1] = shipThrusts[0][T_BACK].Count > 0;
       if (nabfHave[0] && Vector3D.Dot(planeNeed, shipMatrix.Forward) > 0)
