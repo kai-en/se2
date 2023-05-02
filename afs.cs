@@ -151,6 +151,10 @@ namespace kradar_p
       {
         shipMaxForce += t.MaxEffectiveThrust;
       }
+      foreach (IMyThrust t in shipThrusts[1][0])
+      {
+        shipMaxForce += t.MaxEffectiveThrust;
+      }
       shipMass = mainShipCtrl.CalculateShipMass().PhysicalMass;
     }
     double shipMaxForceGet() {
@@ -526,6 +530,7 @@ namespace kradar_p
         autoFollow = false;
         autoDown = false;
         cmdControl = false;
+        isAcc = false;
         foreach (IMyThrust t in shipThrusts[0][T_FRONT])
         {
           t.ThrustOverridePercentage = 0;
@@ -618,6 +623,7 @@ namespace kradar_p
       if (pGravity.Length() < 0.01) return;
       double ma = shipMaxForceGet() / shipMass;
       double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length());
+      debug("salimit: " + sideALimit);
 
       bool haveTarget = false;
       if (tickGet() - mainTarget.lastTime < 120 ) {
@@ -763,8 +769,8 @@ namespace kradar_p
         if (autoFollow) {
           double dot = 0;
           if (naL1MainLocal.Length() > 0.01)
-            dot = Vector3D.Dot(naL1MainLocal, pgln);
-          pNoLR.Y = dot;
+            dot = Vector3D.Dot(Vector3D.Normalize(naL1MainLocal), pgln);
+          pNoLR = naL1MainLocal / dot;
         }
 
         if (pNoLR.Y > 0) needF = shipMass * pNoLR.Length();
