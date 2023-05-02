@@ -399,7 +399,7 @@ namespace kradar_p
 
       List<List<IMyThrust>> l1Thrusts = new List<List<IMyThrust>>();
       shipThrusts.Add(l1Thrusts);
-      GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks, b => b.CubeGrid != Me.CubeGrid);
+      GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks, b => b.CubeGrid != Me.CubeGrid && ((IMyTerminalBlock)b).CustomName.Contains(VT_TAG));
       l1Thrusts.Add(blocks);
       List<IMyMotorStator> rotors = new List<IMyMotorStator>();
       GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(rotors, b => b.CubeGrid == Me.CubeGrid && ((IMyTerminalBlock)b).CustomName.Contains(VT_TAG));
@@ -622,8 +622,7 @@ namespace kradar_p
       if (mainShipCtrl == null) return;
       if (pGravity.Length() < 0.01) return;
       double ma = shipMaxForceGet() / shipMass;
-      double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length());
-      debug("salimit: " + sideALimit);
+      double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.8;
 
       bool haveTarget = false;
       if (tickGet() - mainTarget.lastTime < 120 ) {
@@ -1112,14 +1111,13 @@ namespace kradar_p
       Vector3D na = Vector3D.Zero;
       if (autoFollow) {
         Vector3D pd = motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
-        if (pd.Length() < 20) pd = Vector3D.Normalize(pd) * Math.Log(pd.Length()) * 0.5;
-        else pd = Vector3D.Normalize(pd) * Math.Sqrt(pd.Length()) * 1.5;
+        if (pd.Length() < 20) pd *= 0.23;
+        else pd = Vector3D.Normalize(pd) * Math.Sqrt(pd.Length() - 10) * 1.5;
         Vector3D nv = motherVelocity + pd;
         na = (nv - shipVelGet()) * 0.5;
         double ma = shipMaxForceGet() / shipMass;
-        double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.5;
+        double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.4;
         if (na.Length() > sideALimit) na *= sideALimit / na.Length();
-        debug("nas0: " + display3D(Vector3D.TransformNormal(na, shipRevertMat)));
 
         // avoid 
         foreach (var a in avoidMap)
@@ -1146,6 +1144,15 @@ namespace kradar_p
             var aa = tpdn * al;
             na += aa;
           }
+        }
+        if (fpIdx < fpList.Count - 2) {
+          // avoid planet surface
+          double height = 500;
+          mainShipCtrl.TryGetPlanetElevation(MyPlanetElevation.Surface, out height);
+          var needH = MathHelper.Clamp(500 - height, 0, 200) * 0.05;
+          var needD = Vector3D.Normalize(-pGravity);
+          needH -= Vector3D.Dot(shipVelGet(), needD);
+          na += needD * needH;
         }
       }
 
