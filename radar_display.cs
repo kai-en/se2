@@ -168,6 +168,7 @@ RuntimeTracker runtimeTracker;
 
 Dictionary<long, TargetData> targetDataDict = new Dictionary<long, TargetData>();
 List<IMyLargeTurretBase> turrets = new List<IMyLargeTurretBase>();
+List<IMyTurretControlBlock> turretControls = new List<IMyTurretControlBlock>();
 List<IMyTextSurface> textSurfaces = new List<IMyTextSurface>();
 List<IMyTextSurface> cmdSurfaces = new List<IMyTextSurface>();
 List<IMyShipController> controllers = new List<IMyShipController>();
@@ -822,9 +823,25 @@ void GetTurretTargets()
             var target = block.GetTargetedEntity();
 
             if (target.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies)
-                targetDataDict[target.EntityId] = new TargetData(target.Position, TargetRelation.Enemy, 0, target.Velocity, "", target.Orientation, 0,t);
+                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Enemy, 0, target.Velocity, "", target.Orientation, 0,t);
             else
-                targetDataDict[target.EntityId] = new TargetData(target.Position, TargetRelation.Neutral, 0, target.Velocity, "", target.Orientation, 0,t);
+                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Neutral, 0, target.Velocity, "", target.Orientation, 0,t);
+        }
+    }
+
+    foreach (var block in turretControls)
+    {
+        if (IsClosed(block))
+            continue;
+
+        if (block.HasTarget && !block.IsUnderControl)
+        {
+            var target = block.GetTargetedEntity();
+
+            if (target.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies)
+                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Enemy, 0, target.Velocity, "", target.Orientation, 0,t);
+            else
+                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Neutral, 0, target.Velocity, "", target.Orientation, 0,t);
         }
     }
 
@@ -1498,18 +1515,24 @@ bool PopulateLists(IMyTerminalBlock block)
         return false;
     }
 
+    if (block is IMyTurretControlBlock) {
+        turretControls.Add((IMyTurretControlBlock)block);
+        return false;
+    }
+
     return false;
 }
 
 void GrabBlocks()
 {
     turrets.Clear();
+    turretControls.Clear();
     controllers.Clear();
     textSurfaces.Clear();
 
     GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(null, PopulateLists);
 
-    if (turrets.Count == 0)
+    if (turrets.Count == 0 && turretControls.Count == 0)
         Log.Warning($"No turrets found. You will only be able to see targets that are broadcast by allies.");
 
     if (textSurfaces.Count == 0)

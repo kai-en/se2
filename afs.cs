@@ -162,6 +162,11 @@ namespace kradar_p
         foundId = aiOffensive.SearchEnemyComponent.FoundEnemyId;
       }
       debug("found enemy: " + foundId);
+      MyDetectedEntityInfo te;
+      if (turret != null) {
+        te = turret.GetTargetedEntity();
+        debug("te: " + te.EntityId);
+      }
     }
     double shipMaxForceGet() {
       return shipMaxForce;
@@ -178,6 +183,7 @@ namespace kradar_p
     MyIni cfg;
     const string CFG_GENERAL = "AFS - General";
     IMyOffensiveCombatBlock aiOffensive; // TODO how to get hitpoint?
+    IMyTurretControlBlock turret;
     void getBlocks()
     {
       List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
@@ -215,6 +221,14 @@ namespace kradar_p
         GridTerminalSystem.GetBlocksOfType<IMyOffensiveCombatBlock>(ofBlocks, b => b.CubeGrid == Me.CubeGrid);
         if(ofBlocks.Count > 0) {
           aiOffensive = ofBlocks[0];
+        }
+      }
+
+      if (cleanAll) {
+        List<IMyTurretControlBlock> tuBlocks = new List<IMyTurretControlBlock>();
+        GridTerminalSystem.GetBlocksOfType<IMyTurretControlBlock>(tuBlocks, b => b.CubeGrid == Me.CubeGrid);
+        if (tuBlocks.Count > 0) {
+          turret = tuBlocks[0];
         }
       }
     }
