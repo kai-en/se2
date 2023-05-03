@@ -612,7 +612,7 @@ namespace kradar_p
 
     #region balanceGravity
     double WEAPON_MAX_RANGE = 800;
-    double axisYOffset = -0.5;
+    double axisYOffset = 0.5;
     double axisBs = 350;
     double axisGr = 0.75;
     double axisBr = 800;
@@ -625,6 +625,7 @@ namespace kradar_p
     List<IMyUserControllableGun> shipWeapons = new List<IMyUserControllableGun>();
     // IMySmallGatlingGun    IMySmallMissileLauncher
     double GYRO_RATE = 1;
+    double AIM_LIMIT = 0.999;
     void balanceGravity()
     {
       if (vtRotors.Count > 0) {
@@ -654,6 +655,7 @@ namespace kradar_p
           haveTarget = true;
         }
       }
+      if (tickGet() - suspendStart < 300) haveTarget = false;
       if (haveTarget) {
         // aim 
         Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
@@ -665,7 +667,7 @@ namespace kradar_p
         needRYP[2] = true;
         
         // fire
-        if (tarN.Z < -0.99999) shipWeapons.ForEach(w => w.ShootOnce());
+        if (tarN.Z < -AIM_LIMIT) shipWeapons.ForEach(w => w.ShootOnce());
       }
 
       if (needBalance)
@@ -985,6 +987,7 @@ namespace kradar_p
     bool cmdFollow;
     bool cmdDock;
     bool cmdControl;
+    long suspendStart = 0;
     class MainTarget {
       public Vector3D position;
       public Vector3D velocity;
@@ -1006,6 +1009,9 @@ namespace kradar_p
         {
           case "CONTROL":
             cmdControl = true;
+            break;
+          case "SUSPEND":
+            suspendStart = tickGet();
             break;
         }
         return;
