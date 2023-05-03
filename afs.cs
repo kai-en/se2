@@ -656,6 +656,20 @@ namespace kradar_p
         }
       }
       if (tickGet() - suspendStart < 300) haveTarget = false;
+      String aostr = cfg.Get(CFG_GENERAL, "AIM_OFFSET").ToString();
+      if (aostr == "") {
+        aostr = "0.5";
+        cfg.Set(CFG_GENERAL, "AIM_OFFSET", aostr);
+        Me.CustomData = cfg.ToString();
+      }
+      double.TryParse(aostr, out axisYOffset);
+      String alstr = cfg.Get(CFG_GENERAL, "AIM_LIMIT").ToString();
+      if (alstr == "") {
+        alstr = "0.999";
+        cfg.Set(CFG_GENERAL, "AIM_LIMIT", alstr);
+        Me.CustomData = cfg.ToString();
+      }
+      double.TryParse(alstr, out AIM_LIMIT);
       if (haveTarget) {
         // aim 
         Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
