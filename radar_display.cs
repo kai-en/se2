@@ -504,9 +504,13 @@ void callDcsSendEnemy()
 {
     //debugOnce = $"target {t} count {targetDataDict.Count}";
     List<KeyValuePair<long, TargetData>> enemyList = targetDataDict.Where(i => i.Value.Relation == TargetRelation.Enemy && (MePosition - i.Value.estPosition()).Length() < ALERT_RANGE).ToList();
-    enemyList.Sort((l, r) =>
-            (int)((MePosition - r.Value.estPosition()).Length() -
-        (MePosition - l.Value.estPosition()).Length())
+    enemyList.Sort((l, r) => {
+        if (l.Value.priority != r.Value.priority) return r.Value.priority - l.Value.priority;
+        else return 
+        (int)((MePosition - r.Value.estPosition()).Length() -
+        (MePosition - l.Value.estPosition()).Length());
+    }
+            
     );
     string message = "";
     if (enemyList.Count > 0)
@@ -564,15 +568,15 @@ void ProcessNetworkMessage()
 
             if ((byte)TargetRelation.Friendly == relationship)
             {
-                targetDataDict[entityId] = new TargetData(position, TargetRelation.Friendly, ingestCount, velocity, motherCode, targetMatrix, roundRotationCount,t);
+                putTargetDict(entityId, new TargetData(position, TargetRelation.Friendly, ingestCount, velocity, motherCode, targetMatrix, roundRotationCount,t, TargetData.PR_ANTENNA));
             }
             else if ((byte)TargetRelation.Neutral == relationship)
             {
-                targetDataDict[entityId] = new TargetData(position, TargetRelation.Neutral, ingestCount, velocity, "", targetMatrix, 0,t);
+                putTargetDict(entityId, new TargetData(position, TargetRelation.Neutral, ingestCount, velocity, "", targetMatrix, 0,t, TargetData.PR_ANTENNA));
             }
             else
             {
-                targetDataDict[entityId] = new TargetData(position, TargetRelation.Enemy, ingestCount, velocity, motherCode, targetMatrix, 0,t);
+                putTargetDict(entityId, new TargetData(position, TargetRelation.Enemy, ingestCount, velocity, motherCode, targetMatrix, 0,t, TargetData.PR_ANTENNA));
             }
         }
         else if (messageData is MyTuple<string, string>)
@@ -823,9 +827,9 @@ void GetTurretTargets()
             var target = block.GetTargetedEntity();
 
             if (target.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies)
-                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Enemy, 0, target.Velocity, "", target.Orientation, 0,t);
+                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Enemy, 0, target.Velocity, "", target.Orientation, 0,t, TargetData.PR_TURRET);
             else
-                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Neutral, 0, target.Velocity, "", target.Orientation, 0,t);
+                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Neutral, 0, target.Velocity, "", target.Orientation, 0,t, TargetData.PR_TURRET);
         }
     }
 
@@ -839,9 +843,9 @@ void GetTurretTargets()
             var target = block.GetTargetedEntity();
 
             if (target.Relationship == MyRelationsBetweenPlayerAndBlock.Enemies)
-                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Enemy, 0, target.Velocity, "", target.Orientation, 0,t);
+                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Enemy, 0, target.Velocity, "", target.Orientation, 0,t, TargetData.PR_TURRET);
             else
-                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Neutral, 0, target.Velocity, "", target.Orientation, 0,t);
+                targetDataDict[target.EntityId] = new TargetData((Vector3D)(target.HitPosition != null ? target.HitPosition : target.Position), TargetRelation.Neutral, 0, target.Velocity, "", target.Orientation, 0,t, TargetData.PR_TURRET);
         }
     }
 
@@ -948,8 +952,12 @@ class TargetData
     public double Round;
     public long t;
 
+    public int priority;
+    public static int PR_TURRET = 0;
+    public static int PR_KRADAR = 1;
+    public static int PR_ANTENNA = 2;
 
-    public TargetData(Vector3D position, TargetRelation relation, byte ingestCount, Vector3D velocity, string code, MatrixD mat, double round, long t)
+    public TargetData(Vector3D position, TargetRelation relation, byte ingestCount, Vector3D velocity, string code, MatrixD mat, double round, long t, int priority)
     {
         this.Position = position;
         this.Relation = relation;
@@ -959,6 +967,7 @@ class TargetData
         this.Mat = mat;
         this.Round = round;
         this.t = t;
+        this.priority = priority;
     }
 
     public Vector3D estPosition() { 
@@ -982,8 +991,8 @@ class KRadarTargetData : TargetData
 
     public static long maxId = 1;
 
-    public KRadarTargetData(Vector3D position, TargetRelation relation, byte ingestCount, Vector3D velocity, string code, MatrixD mat, double round, long t)
-        : base(position, relation, ingestCount, velocity, code, mat, round, t)
+    public KRadarTargetData(Vector3D position, TargetRelation relation, byte ingestCount, Vector3D velocity, string code, MatrixD mat, double round, long t, int priority)
+        : base(position, relation, ingestCount, velocity, code, mat, round, t, priority)
     {
 
     }
@@ -2333,10 +2342,13 @@ void parseFcsTarget()
         long tmpL;
         cfgTarget.Get("EntityId" + i, ref tmpS);
         long.TryParse(tmpS, out tmpL);
-        targetDataDict[tmpL] = new TargetData(tmpP, TargetRelation.Enemy, MAX_REBROADCAST_INGEST_COUNT, tmpV, MOTHER_CODE, new MatrixD(), 0,t);
+        putTargetDict(tmpL, new TargetData(tmpP, TargetRelation.Enemy, MAX_REBROADCAST_INGEST_COUNT, tmpV, MOTHER_CODE, new MatrixD(), 0,t, TargetData.PR_KRADAR));
     }
+}
 
-
+void putTargetDict(long eid, TargetData tar) {
+    if (targetDataDict.ContainsKey(eid) && targetDataDict[eid].priority < tar.priority) return;
+    targetDataDict[eid] = tar;
 }
 
 class KRadarElement
@@ -2473,7 +2485,7 @@ void parseKRadarTarget()
     {
         if (kp.occupied) continue;
         var newID = KRadarTargetData.maxId++;
-        KRadarTargetData newTarget = new KRadarTargetData(kp.pos, TargetRelation.Enemy, MAX_REBROADCAST_INGEST_COUNT, Vector3D.Zero, MOTHER_CODE, new MatrixD(), 0,t);
+        KRadarTargetData newTarget = new KRadarTargetData(kp.pos, TargetRelation.Enemy, MAX_REBROADCAST_INGEST_COUNT, Vector3D.Zero, MOTHER_CODE, new MatrixD(), 0,t, TargetData.PR_KRADAR);
         newTarget.realPos = kp.pos;
         newTarget.lastFrame = t;
         newTarget.size = kp.size;
