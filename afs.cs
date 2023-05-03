@@ -156,6 +156,12 @@ namespace kradar_p
         shipMaxForce += t.MaxEffectiveThrust;
       }
       shipMass = mainShipCtrl.CalculateShipMass().PhysicalMass;
+
+      long? foundId = 0;
+      if (aiOffensive != null) {
+        foundId = aiOffensive.SearchEnemyComponent.FoundEnemyId;
+      }
+      debug("found enemy: " + foundId);
     }
     double shipMaxForceGet() {
       return shipMaxForce;
@@ -171,6 +177,7 @@ namespace kradar_p
     }
     MyIni cfg;
     const string CFG_GENERAL = "AFS - General";
+    IMyOffensiveCombatBlock aiOffensive;
     void getBlocks()
     {
       List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
@@ -183,21 +190,32 @@ namespace kradar_p
       }
       if (mainShipCtrl == null) return;
 
-      if (tickGet() % 300 == 0)
+      bool cleanAll = tickGet() % 300 == 0;
+
+      if (cleanAll)
       {
         shipThrusts.Clear();
         shipGyros.Clear();
         gyroFields.Clear();
         gyroFactors.Clear();
         vtRotors.Clear();
+        shipWeapons.Clear();
       }
 
       if (shipThrusts.Count == 0) getThrusts();
       if (shipGyros.Count == 0) getGyros();
       if (shipConns.Count == 0) getConns();
 
-      if (tickGet() % 300 == 0 && shipWeapons.Count == 0) {
+      if (cleanAll) {
         GridTerminalSystem.GetBlocksOfType<IMyUserControllableGun>(shipWeapons, b => b.CubeGrid == Me.CubeGrid);
+      }
+
+      if (cleanAll) { 
+        List<IMyOffensiveCombatBlock> ofBlocks = new List<IMyOffensiveCombatBlock>();
+        GridTerminalSystem.GetBlocksOfType<IMyOffensiveCombatBlock>(ofBlocks, b => b.CubeGrid == Me.CubeGrid);
+        if(ofBlocks.Count > 0) {
+          aiOffensive = ofBlocks[0];
+        }
       }
     }
     void getGyros()
