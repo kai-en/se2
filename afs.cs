@@ -177,7 +177,7 @@ namespace kradar_p
     }
     MyIni cfg;
     const string CFG_GENERAL = "AFS - General";
-    IMyOffensiveCombatBlock aiOffensive;
+    IMyOffensiveCombatBlock aiOffensive; // TODO how to get hitpoint?
     void getBlocks()
     {
       List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
@@ -886,8 +886,8 @@ namespace kradar_p
         }
       }
 
-      bool needOpZ = Math.Abs(moveInput.Z) > 0.01;
       if (autoFollow || autoDown) {
+        bool needOpZ = Math.Abs(moveInput.Z) > 0.01;
         double maxBack = 0;
         int tidx = T_FRONT;
         int tOther = T_BACK;
@@ -908,9 +908,16 @@ namespace kradar_p
         double per = 0;
         if (maxBack > 0) per = nf / maxBack;
         per *= dot;
+        bool needOpTidx = needOpZ && ((tidx == T_FRONT && moveInput.Z < 0) || (tidx == T_BACK && moveInput.Z > 0));
+        bool needOpTother = needOpZ && !needOpTidx;
         
         foreach (IMyThrust t in shipThrusts[0][tidx])
         {
+          if (needOpTidx) {
+            t.Enabled = true;
+            t.ThrustOverridePercentage = 0;
+            continue;
+          }
           if (per == 0)  {
             t.Enabled = false;
           }
@@ -922,6 +929,11 @@ namespace kradar_p
         }
         foreach (IMyThrust t in shipThrusts[0][tOther])
         {
+          if (needOpTother) {
+            t.Enabled = true;
+            t.ThrustOverridePercentage = 0;
+            continue;
+          }
           t.Enabled = false;
           t.ThrustOverridePercentage = 0;
         }
