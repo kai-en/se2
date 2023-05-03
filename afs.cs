@@ -527,7 +527,12 @@ namespace kradar_p
         autoFollow = true;
         cmdFollow = false;
         isDocking = false;
-        if(fpIdx == fpList.Count - 1) fpIdx --;
+        if(fpIdx == fpList.Count - 1) {
+          if ((shipPosition - motherPosition).Length() > fpList[0].Length())
+            fpIdx = 0;
+          else
+            fpIdx --;
+        }
         shipConns.ForEach(c => c.Disconnect());
         docked = false;
         setDampenersOverride(mainShipCtrl, false);
@@ -776,7 +781,8 @@ namespace kradar_p
         Vector3D pNoLR = -Vector3D.Reject(pGravityLocal, new Vector3D(1,0,0));
         Vector3D pgln = Vector3D.Normalize(pNoLR);
         Vector3D mi = pgln * Vector3D.Dot(moveInputDam, pgln);
-        pNoLR += mi * 5.0;
+        if (Math.Abs(moveInputDam.Y) > -.7)
+          pNoLR += mi * 5.0;
         double needF = 0;
         if (autoDown) {
           var vd = -1.5 - shipVelLocalGet().Y;
@@ -1167,9 +1173,9 @@ namespace kradar_p
           // avoid planet surface
           double height = 500;
           mainShipCtrl.TryGetPlanetElevation(MyPlanetElevation.Surface, out height);
-          var needH = MathHelper.Clamp(500 - height, 0, 200) * 0.05;
+          var needH = MathHelper.Clamp(500 - height, 0, 200) * 0.1;
           var needD = Vector3D.Normalize(-pGravity);
-          needH -= Vector3D.Dot(shipVelGet(), needD);
+          needH -= Vector3D.Dot(shipVelGet() * 0.5, needD);
           na += needD * needH;
         }
       }
