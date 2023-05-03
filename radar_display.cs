@@ -504,8 +504,9 @@ void callDcsSendEnemy()
 {
     //debugOnce = $"target {t} count {targetDataDict.Count}";
     List<KeyValuePair<long, TargetData>> enemyList = targetDataDict.Where(i => i.Value.Relation == TargetRelation.Enemy && (MePosition - i.Value.estPosition()).Length() < ALERT_RANGE).ToList();
+    debug("el: " + String.Join(" ", enemyList.Select(e => e.Value.priority + "")));
     enemyList.Sort((l, r) => {
-        if (l.Value.priority != r.Value.priority) return r.Value.priority - l.Value.priority;
+        if (l.Value.priority != r.Value.priority) return l.Value.priority - r.Value.priority;
         else return 
         (int)((MePosition - r.Value.estPosition()).Length() -
         (MePosition - l.Value.estPosition()).Length());
@@ -906,7 +907,7 @@ void GetTurretTargets()
     NetworkTargets();
 
     // targetDataDict.Clear(); don't clear kradar target, it will clean by parseKRadarTarget function
-    targetDataDict = targetDataDict.Where(x => x.Value is KRadarTargetData).ToDictionary(x => x.Key, x => x.Value);
+    targetDataDict = targetDataDict.Where(x => x.Value is KRadarTargetData || t - x.Value.t < 120).ToDictionary(x => x.Key, x => x.Value);
 }
 
 void Draw(float startProportion, float endProportion)
