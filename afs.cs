@@ -37,6 +37,7 @@ namespace kradar_p
 
       // check ship
       checkShip();
+      if (shipThrusts.Count == 0) return;
 
       // parse input
       parseInput();
@@ -134,6 +135,7 @@ namespace kradar_p
     void checkShip()
     {
       getBlocks();
+      if (shipThrusts.Count == 0) return;
 
       if (mainShipCtrl == null) return;
 
@@ -207,13 +209,16 @@ namespace kradar_p
         vtRotors.Clear();
         shipWeapons.Clear();
       }
-
-      if (shipThrusts.Count == 0) getThrusts();
+      
       if (shipGyros.Count == 0) getGyros();
       if (shipConns.Count == 0) getConns();
 
-      if (cleanAll) {
-        GridTerminalSystem.GetBlocksOfType<IMyUserControllableGun>(shipWeapons, b => b.CubeGrid == Me.CubeGrid);
+      bool connected = shipConns.Any(c => c.Status.ToString().Equals("Connected"));
+      
+      if (shipThrusts.Count == 0 && !connected) getThrusts();
+
+      if (cleanAll && !connected) {
+        GridTerminalSystem.GetBlocksOfType<IMyUserControllableGun>(shipWeapons);
       }
 
       if (cleanAll) { 
@@ -224,9 +229,9 @@ namespace kradar_p
         }
       }
 
-      if (cleanAll) {
+      if (cleanAll && !connected) {
         List<IMyTurretControlBlock> tuBlocks = new List<IMyTurretControlBlock>();
-        GridTerminalSystem.GetBlocksOfType<IMyTurretControlBlock>(tuBlocks, b => b.CubeGrid == Me.CubeGrid);
+        GridTerminalSystem.GetBlocksOfType<IMyTurretControlBlock>(tuBlocks);
         if (tuBlocks.Count > 0) {
           turret = tuBlocks[0];
         }
