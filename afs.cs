@@ -31,7 +31,7 @@ namespace kradar_p
       if ((updateType & UpdateType.Update1) == 0) {
         return;
       }
-      debugClear();
+      
       tickPlus();
       if (autoFollow && tickGet() % 15 != 0) return;
 
@@ -46,7 +46,6 @@ namespace kradar_p
       // decide mode
       decideMode();
       debug("ab: " + autoBalance + " ad: " + autoDown + " acc: " + isAcc + " af: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx);
-
       if (!isStandBy && !docked)
       {
         // follow position
@@ -67,6 +66,7 @@ namespace kradar_p
       }
 
       debugShow();
+      debugClear();
     }
 
     #region tick
@@ -167,7 +167,6 @@ namespace kradar_p
       MyDetectedEntityInfo te;
       if (turret != null) {
         te = turret.GetTargetedEntity();
-        debug("te: " + te.EntityId);
       }
     }
     double shipMaxForceGet() {
@@ -186,12 +185,13 @@ namespace kradar_p
     const string CFG_GENERAL = "AFS - General";
     IMyOffensiveCombatBlock aiOffensive; // TODO how to get hitpoint?
     IMyTurretControlBlock turret;
+    const string IGNORE_TAG = "#A#";
     void getBlocks()
     {
       List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
       if (mainShipCtrl == null)
       {
-        GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks, b => b.CubeGrid == Me.CubeGrid);
+        GridTerminalSystem.GetBlocksOfType<IMyShipController>(blocks, b => b.CubeGrid == Me.CubeGrid && !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
         mainShipCtrl = (IMyShipController)matchNameOrFirst(blocks, "main");
         cfg = new MyIni();
         cfg.TryParse(Me.CustomData);
@@ -218,12 +218,12 @@ namespace kradar_p
       if (shipThrusts.Count == 0 && !connected) getThrusts();
 
       if (cleanAll && !connected) {
-        GridTerminalSystem.GetBlocksOfType<IMyUserControllableGun>(shipWeapons);
+        GridTerminalSystem.GetBlocksOfType<IMyUserControllableGun>(shipWeapons, b=> !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
       }
 
       if (cleanAll) { 
         List<IMyOffensiveCombatBlock> ofBlocks = new List<IMyOffensiveCombatBlock>();
-        GridTerminalSystem.GetBlocksOfType<IMyOffensiveCombatBlock>(ofBlocks, b => b.CubeGrid == Me.CubeGrid);
+        GridTerminalSystem.GetBlocksOfType<IMyOffensiveCombatBlock>(ofBlocks, b => b.CubeGrid == Me.CubeGrid && !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
         if(ofBlocks.Count > 0) {
           aiOffensive = ofBlocks[0];
         }
@@ -231,7 +231,7 @@ namespace kradar_p
 
       if (cleanAll && !connected) {
         List<IMyTurretControlBlock> tuBlocks = new List<IMyTurretControlBlock>();
-        GridTerminalSystem.GetBlocksOfType<IMyTurretControlBlock>(tuBlocks);
+        GridTerminalSystem.GetBlocksOfType<IMyTurretControlBlock>(tuBlocks, b => !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
         if (tuBlocks.Count > 0) {
           turret = tuBlocks[0];
         }
@@ -240,7 +240,7 @@ namespace kradar_p
     void getGyros()
     {
       List<IMyGyro> blocks = new List<IMyGyro>();
-      GridTerminalSystem.GetBlocksOfType<IMyGyro>(blocks, b => b.CubeGrid == Me.CubeGrid);
+      GridTerminalSystem.GetBlocksOfType<IMyGyro>(blocks, b => b.CubeGrid == Me.CubeGrid && !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
       foreach (IMyGyro g in blocks)
       {
         shipGyros.Add(g);
@@ -337,7 +337,7 @@ namespace kradar_p
       }
     }
     void getConns() {
-      GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(shipConns, b => b.CubeGrid == Me.CubeGrid);
+      GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(shipConns, b => b.CubeGrid == Me.CubeGrid && !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
     }
     float gyroDZ = 0.01F;
     double rateAdjust(double r)
@@ -397,7 +397,7 @@ namespace kradar_p
         l0Thrusts.Add(new List<IMyThrust>());
       }
       List<IMyThrust> blocks = new List<IMyThrust>();
-      GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks, b => b.CubeGrid == Me.CubeGrid);
+      GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks, b => b.CubeGrid == Me.CubeGrid && !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
       List<double> mafThusts = new List<double> { 0, 0, 0, 0, 0, 0 };
 
       foreach (IMyThrust t in blocks)
@@ -436,10 +436,10 @@ namespace kradar_p
 
       List<List<IMyThrust>> l1Thrusts = new List<List<IMyThrust>>();
       shipThrusts.Add(l1Thrusts);
-      GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks, b => b.CubeGrid != Me.CubeGrid && ((IMyTerminalBlock)b).CustomName.Contains(VT_TAG));
+      GridTerminalSystem.GetBlocksOfType<IMyThrust>(blocks, b => b.CubeGrid != Me.CubeGrid && ((IMyTerminalBlock)b).CustomName.Contains(VT_TAG) && !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
       l1Thrusts.Add(blocks);
       List<IMyMotorStator> rotors = new List<IMyMotorStator>();
-      GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(rotors, b => b.CubeGrid == Me.CubeGrid && ((IMyTerminalBlock)b).CustomName.Contains(VT_TAG));
+      GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(rotors, b => b.CubeGrid == Me.CubeGrid && ((IMyTerminalBlock)b).CustomName.Contains(VT_TAG) && !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
       foreach( var r in rotors) {
         VTRotor vr = new VTRotor();
         vr.rotor = r;
@@ -587,7 +587,7 @@ namespace kradar_p
       }
       needBalance = autoBalance || autoDown;
 
-      if (isDocking && ! docked) {
+      if (isDocking && (!docked)) {
         if (shipConns.Any(c => c.Status.ToString().Equals("Connectable"))) {
           shipConns.ForEach(c => c.Connect());
           shipThrusts.ForEach(tl => tl.ForEach(tll => tll.ForEach(t => t.ThrustOverridePercentage = 0)));
@@ -1033,7 +1033,6 @@ namespace kradar_p
     void parseRadar(string arguments)
     {
       debug("standby: " + isStandBy);
-      debug("mother: " + display3D(Vector3D.TransformNormal(motherPositionGet() - shipPosition, shipRevertMat)));
       if (arguments == null) return;
       String[] kv = arguments.Split(':');
       if (kv.Length == 1)
@@ -1059,7 +1058,6 @@ namespace kradar_p
         
       }
 
-      debugCondition("enemy: " + kv[1], kv[0].Equals(sonCode + "-ENEMY"));
       if (kv[0].Equals(sonCode + "-ENEMY"))
       {
         args = kv[1].Split(',');
@@ -1308,7 +1306,6 @@ namespace kradar_p
           Me.CustomData = cfg.ToString();
         }
         fpIdx = fpList.Count - 1;
-        isDocking = true;
       }
 
       if (!autoFollow) return;
