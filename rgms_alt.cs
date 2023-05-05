@@ -38,7 +38,7 @@ List<IMyTerminalBlock> welderList = new List<IMyTerminalBlock>();
 //double MISSILE_MASS = 5316.4;
 //double MISSILE_MASS = 1989;
 //double MISSILE_MASS = 1407.4;
-double LaunchDist = 15;
+double LaunchDist = 3;
 static double MAX_SPEED = 1000;
 static double OTV_MIN_RANGE = MAX_SPEED * 5;
 int dropTime = 0;
@@ -138,6 +138,7 @@ class MISSILE
     public List<IMyTerminalBlock> SPOTLIST = new List<IMyTerminalBlock>();
     public List<IMyTerminalBlock> LANDINGLIST = new List<IMyTerminalBlock>();
     public IMyTerminalBlock SMOKE;
+    public IMyShipConnector CONN;
 
     //Permanent Missile Details
     public double MissileAccel = 10;
@@ -1388,7 +1389,7 @@ bool INIT_NEXT_MISSILE()
         TempPower.Sort((x, y) => (x.GetPosition() - Key_Gyro.GetPosition()).LengthSquared().CompareTo((y.GetPosition() - Key_Gyro.GetPosition()).LengthSquared()));
 
         //Sorts And Selects Merges
-        List<IMyTerminalBlock> TempMerges = MERGES.FindAll(b => (b.GetPosition() - GyroPos).Length() < 2 && b.CustomName.Contains(NEW_MISSILE.MISSILE_TAG));
+        List<IMyTerminalBlock> TempMerges = MERGES.FindAll(b => b.CustomName.Contains(NEW_MISSILE.MISSILE_TAG));
         TempMerges.Sort((x, y) => (compareP(x, y, Key_Gyro)));
         bool isRefueling = false;
         if (TempMerges.Count > 0)
@@ -1442,6 +1443,12 @@ bool INIT_NEXT_MISSILE()
         TempSmokes.Sort((x, y) => (compareP(x, y, Key_Gyro)));
         if (TempSmokes.Count > 0)
             NEW_MISSILE.SMOKE = TempSmokes[0];
+        
+        List<IMyShipConnector> TempConns = new List<IMyShipConnector>();
+        GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(TempSmokes, b => b.CustomName.Contains(NEW_MISSILE.MISSILE_TAG));
+        TempConns.Sort((x, y) => (compareP(x, y, Key_Gyro)));
+        if (TempConns.Count > 0)
+            NEW_MISSILE.CONN = TempConns[0];
 
         //Checks All Key Blocks Are Present
         bool HasTurret = TempTurrets.Count > 0;
