@@ -491,6 +491,9 @@ namespace KRadarNamespace
                 return false;
             });
 
+            List<IMyPlayer> playerList = new List<IMyPlayer>();
+            MyAPIGateway.Players.GetPlayers(playerList, p => p.IdentityId == beacon.OwnerId);
+            IMyPlayer radarOwnerPlayer = playerList[0];
             var cEnemyEntities = cHasPower.Where(x =>
             {
                 IMyCubeGrid grid = (IMyCubeGrid)(x.entity.GetTopMostParent());
@@ -499,7 +502,7 @@ namespace KRadarNamespace
                 owners.Concat(grid.SmallOwners);
                 var allowners = owners.Distinct();
                 // debugInfo += "OwnerCount: " + owners.Count + (owners.Count > 0 ? " " + owners[0]: "") + (owners.Count > 1 ? " " + owners[1] : "") + "\n";
-                bool isEnemy = allowners.Any(o => !judgeFriendly(o, beacon.OwnerId));
+                bool isEnemy = allowners.Any(o => !radarOwnerPlayer.GetRelationTo(o).IsFriendly());
                 return isEnemy;
             });
 
@@ -584,6 +587,9 @@ namespace KRadarNamespace
 
             List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
 
+            List<IMyPlayer> playerList = new List<IMyPlayer>();
+            MyAPIGateway.Players.GetPlayers(playerList, p => p.IdentityId == beacon.OwnerId);
+            IMyPlayer radarOwnerPlayer = playerList[0];
             // 1. filter no power
             var cHavePower = cGridEntities.Select(x => {
                 var grid = (IMyCubeGrid)x.GetTopMostParent();
@@ -599,8 +605,17 @@ namespace KRadarNamespace
             }).Where(x =>
             {
                 IMyCubeGrid grid = (IMyCubeGrid)(x.entity.GetTopMostParent());
-                // ignore no powered 
                 var terminal = MyAPIGateway.TerminalActionsHelper.GetTerminalSystemForGrid(grid);
+                // ignore friendly small grid(missiles)
+                List<long> owners = new List<long>(grid.BigOwners);
+                owners.Concat(grid.SmallOwners);
+                var allowners = owners.Distinct();
+                bool isEnemy = allowners.Any(o => !radarOwnerPlayer.GetRelationTo(o).IsFriendly());
+                List<IMyTerminalBlock> terminalBlocks = new List<IMyTerminalBlock>();
+                terminal.GetBlocks(terminalBlocks);
+                if (!isEnemy && terminalBlocks.Count < 10 && grid.GridSizeEnum == MyCubeSize.Small) return false;
+
+                // ignore no powered 
                 blocks.Clear();
                 terminal.GetBlocksOfType<IMyReactor>(blocks, y => y.IsFunctional);
                 if (blocks.Any()) return true;
@@ -683,10 +698,6 @@ namespace KRadarNamespace
                     if (decoyList.Count == 0) break;
                     // ignore friendly decoy?
                     var decoy = decoyList[0];
-                    List<IMyPlayer> playerList = new List<IMyPlayer>();
-                    MyAPIGateway.Players.GetPlayers(playerList, p => p.IdentityId == beacon.OwnerId);
-                    if (playerList.Count == 0) break;
-                    IMyPlayer radarOwnerPlayer = playerList[0];
                     if (radarOwnerPlayer.GetRelationTo(decoy.OwnerId).IsFriendly()) break;
 
                     if (grid.GridSizeEnum == MyCubeSize.Large)
@@ -813,7 +824,7 @@ namespace KRadarNamespace
                 owners.Concat(grid.SmallOwners);
                 var allowners = owners.Distinct();
                 // debugInfo += "OwnerCount: " + owners.Count + (owners.Count > 0 ? " " + owners[0]: "") + (owners.Count > 1 ? " " + owners[1] : "") + "\n";
-                bool isEnemy = allowners.Any(o => !judgeFriendly(o, beacon.OwnerId));
+                bool isEnemy = allowners.Any(o => !radarOwnerPlayer.GetRelationTo(o).IsFriendly());
                 return isEnemy;
             }).Select(x=>x.entity).ToList();
             var performP5 = stopWatch.ElapsedTicks;
@@ -937,6 +948,7 @@ namespace KRadarNamespace
             }
         }
 
+        /*
         private bool judgeFriendly(long gridOwner, long radarOwner)
         {
             if (gridOwner == radarOwner) return true;
@@ -946,6 +958,7 @@ namespace KRadarNamespace
             IMyPlayer radarOwnerPlayer = playerList[0];
             return radarOwnerPlayer.GetRelationTo(gridOwner).IsFriendly();
         }
+        */
     }
 
     public class CustomConfiguration
