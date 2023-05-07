@@ -177,3 +177,18 @@ add velocity
 - l2dam 在有俯仰时考虑俯仰
 - down模式 矢量喷口没按下降1.5计算
 - standby 模式关闭l2推力
+
+pandeV2整合
+演示看我的视频介绍
+配置需求，750-2060系列显卡
+百度网盘：https://pan.baidu.com/s/17cpm4E0C4XpRxDUKDwCjvg?pwd=khru
+夸克网盘：https://pan.quark.cn/s/c1a9766b8c1c
+解压码pande1871976531
+
+# 0506
+- 导弹解锁conn done
+- 导弹refueler conn
+- 测试原版雷达 done
+
+# 0507
+- 导弹refueler conn TODO

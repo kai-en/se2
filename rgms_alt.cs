@@ -38,7 +38,7 @@ List<IMyTerminalBlock> welderList = new List<IMyTerminalBlock>();
 //double MISSILE_MASS = 5316.4;
 //double MISSILE_MASS = 1989;
 //double MISSILE_MASS = 1407.4;
-double LaunchDist = 3;
+double LaunchDist = 6;
 static double MAX_SPEED = 1000;
 static double OTV_MIN_RANGE = MAX_SPEED * 5;
 int dropTime = 0;
@@ -845,6 +845,8 @@ public IEnumerable<bool> MissileLaunchHandler()
         var MERGE_A = ThisMissile.MERGE;
         (MERGE_A as IMyShipMergeBlock).Enabled = false;
 
+        if (ThisMissile.CONN != null) ThisMissile.CONN.Disconnect();
+
         
         for (int k = 0; k < dropTime; k++) {
         	yield return true;
@@ -1443,9 +1445,9 @@ bool INIT_NEXT_MISSILE()
         TempSmokes.Sort((x, y) => (compareP(x, y, Key_Gyro)));
         if (TempSmokes.Count > 0)
             NEW_MISSILE.SMOKE = TempSmokes[0];
-        
+
         List<IMyShipConnector> TempConns = new List<IMyShipConnector>();
-        GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(TempSmokes, b => b.CustomName.Contains(NEW_MISSILE.MISSILE_TAG));
+        GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(TempConns, b => b.CustomName.Contains(NEW_MISSILE.MISSILE_TAG));
         TempConns.Sort((x, y) => (compareP(x, y, Key_Gyro)));
         if (TempConns.Count > 0)
             NEW_MISSILE.CONN = TempConns[0];
