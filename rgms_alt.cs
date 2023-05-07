@@ -18,8 +18,7 @@ namespace rgms_p
 // start ingame script
 
 static int SMOKE_DENSITY = 8; // larger means less smoke
-static double REFUELER_MERGE_DISTANCE = 1.81;
-static double REFUELER_HINGE_DISTANCE = 0.51;
+static double REFUELER_MERGE_DISTANCE = 0.8;
 static bool isNearExplode = true;
 //static int rgms_no = 0;
 // static float missileGravityRate = 5F;
@@ -48,7 +47,7 @@ static string debugInfo = "";
 static bool fixDebug = false;
 static long debugInterval = 30;
 static long timestamp = 0;
-const int MISSILE_BUILD_TIME = 20;
+const int MISSILE_BUILD_TIME = 2;
 bool isAeroDynamic = false;
 double aero_liftrate = 0.1;
 bool isPn = false;
@@ -212,31 +211,27 @@ String aimBlockName = "Lidar FCS#R";
 
 class Refueler
 {
-    public IMyMotorStator h1;
+    public IMyShipConnector c;
     public string MISSILE_TAG = "#A#0";
-    public IMyMotorStator h2;
     public IMyShipMergeBlock m;
     public IMyGridTerminalSystem gts;
     public int status; // 0 = standby 1 processing 2 finished
     public long pStart = 0;
-    public Refueler(IMyMotorStator h, IMyGridTerminalSystem gts)
+    public Refueler(IMyShipConnector c, IMyGridTerminalSystem gts)
     {
-        this.h1 = h;
-        CustomConfiguration cfg = new CustomConfiguration(this.h1);
+        this.c = c;
+        CustomConfiguration cfg = new CustomConfiguration(this.c);
         cfg.Load();
         cfg.Get("MISSILE_TAG", ref this.MISSILE_TAG);
         this.gts = gts;
-        List<IMyMotorStator> h2clist = new List<IMyMotorStator>();
-        gts.GetBlocksOfType<IMyMotorStator>(h2clist, h2 => h2.CustomName.Contains("[MS 2]") && (h2.GetPosition() - h.GetPosition()).Length() < REFUELER_HINGE_DISTANCE);
-        if (h2clist.Count == 0) throw new Exception("Refueler init error");
-        this.h2 = h2clist[0];
     }
 
     private void checkStart(List<IMyShipMergeBlock> mclist)
     {
         if (mclist.Count == 0) return;
-        var matchlist = mclist.Where(x => (x.GetPosition() - h1.GetPosition()).Length() < REFUELER_MERGE_DISTANCE && x.Enabled && x.CustomName.Contains(this.MISSILE_TAG)).ToList();
+        var matchlist = mclist.Where(x => (x.GetPosition() - c.GetPosition()).Length() < REFUELER_MERGE_DISTANCE && x.Enabled && x.CustomName.Contains(this.MISSILE_TAG)).ToList();
         if (matchlist.Count == 0) return;
+        matchlist.Sort((x, y) => (compareP((IMyTerminalBlock)x, (IMyTerminalBlock)y, (IMyTerminalBlock)this.c)));
         this.m = matchlist[0];
         status = 1;
         pStart = timestamp;
@@ -249,39 +244,7 @@ class Refueler
         }
         else if (timestamp < pStart + (MISSILE_BUILD_TIME + 8) * 60)
         {
-            this.h1.SetValueFloat("Velocity", (float)5);
-        }
-        else if (timestamp < pStart + (MISSILE_BUILD_TIME + 14) * 60)
-        {
-            if (!this.h2.IsAttached)
-            {
-                this.h2.ApplyAction("Attach");
-            }
-        }
-        else if (timestamp < pStart + (MISSILE_BUILD_TIME + 24) * 60)
-        {
-            if (this.m.Enabled)
-            {
-                this.m.Enabled = false;
-            }
-        }
-        else if (timestamp < pStart + (MISSILE_BUILD_TIME + 27) * 60)
-        {
-            if (!this.m.Enabled)
-            {
-                this.m.Enabled = true;
-            }
-        }
-        else if (timestamp < pStart + (MISSILE_BUILD_TIME + 30) * 60)
-        {
-            if (this.h2.IsAttached)
-            {
-                this.h2.ApplyAction("Detach");
-            }
-        }
-        else if (timestamp < pStart + (MISSILE_BUILD_TIME + 36) * 60)
-        {
-            this.h1.SetValueFloat("Velocity", (float)-5);
+            this.c.Connect();
         }
         else if (timestamp < pStart + (MISSILE_BUILD_TIME + 38) * 60)
         {
@@ -291,7 +254,7 @@ class Refueler
 
     private void checkFired()
     {
-        if ((m.GetPosition() - h1.GetPosition()).Length() > 10)
+        if ((m.GetPosition() - c.GetPosition()).Length() > 10)
         {
             status = 0;
             this.m = null;
@@ -368,8 +331,8 @@ Program()
     if (TempCollection4.Count > 0)
     { fcsComputer = TempCollection4[0]; }
 
-    List<IMyMotorStator> TempCollection5 = new List<IMyMotorStator>();
-    GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(TempCollection5, a => a.CustomName.Contains("[MS 1]"));
+    List<IMyShipConnector> TempCollection5 = new List<IMyShipConnector>();
+    GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(TempCollection5, a => a.CustomName.Contains("[MS]"));
     TempCollection5 = TempCollection5.OrderBy(g => {
         var rcmt = RC.WorldMatrix;
         var tranmt = MatrixD.CreateLookAt(new Vector3D(), rcmt.Forward, rcmt.Up);
@@ -1523,7 +1486,7 @@ bool INIT_NEXT_MISSILE()
 #endregion
 
 // a b K
-int compareP(IMyTerminalBlock a, IMyTerminalBlock b, IMyTerminalBlock s)
+static int compareP(IMyTerminalBlock a, IMyTerminalBlock b, IMyTerminalBlock s)
 {
     return (a.GetPosition() - s.GetPosition()).Length().CompareTo((b.GetPosition() - s.GetPosition()).Length());
 }
