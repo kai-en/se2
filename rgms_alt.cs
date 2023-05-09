@@ -48,6 +48,8 @@ static bool fixDebug = false;
 static long debugInterval = 30;
 static long timestamp = 0;
 const int MISSILE_BUILD_TIME = 2;
+const int MISSILE_ALL_TIME = 28;
+
 bool isAeroDynamic = false;
 double aero_liftrate = 0.1;
 bool isPn = false;
@@ -246,7 +248,7 @@ class Refueler
         {
             this.c.Connect();
         }
-        else if (timestamp < pStart + (MISSILE_BUILD_TIME + 38) * 60)
+        else if (timestamp > pStart + (MISSILE_BUILD_TIME + MISSILE_ALL_TIME) * 60)
         {
             status = 2;
         }
@@ -769,7 +771,7 @@ void drawMissile()
                 else if (status == 1)
                 {
                     float t = (float)(timestamp - refueler.pStart);
-                    persent = t / ((MISSILE_BUILD_TIME + 39) * 60);
+                    persent = t / ((MISSILE_BUILD_TIME + MISSILE_ALL_TIME) * 60);
                 }
                 var fSize = new Vector2(persize * 0.33f - 2, (persizeH * 0.7f - 2) * persent);
                 sprite = new MySprite(SpriteType.TEXTURE, "SquareSimple", size: fSize, color: fColor);
