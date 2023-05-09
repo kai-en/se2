@@ -645,6 +645,40 @@ namespace kradar_p
     // IMySmallGatlingGun    IMySmallMissileLauncher
     double GYRO_RATE = 1;
     double AIM_LIMIT = 0.999;
+    Vector3D noGraUp = Vector3D.Zero;
+    void balanceNoGravity() {
+      if (noGraUp == Vector3D.Zero) {
+        noGraUp = mainShipCtrl.WorldMatrix.Up;
+      }
+
+      bool[] needRYP = new bool[] { false, false, false };
+
+      if (needBalance && mainShipCtrl.DampenersOverride)
+      {
+        var noGraUpLocal = Vector3D.TransformNormal(noGraUp, shipRevertMat);
+        Vector3D upNoFB = Vector3D.Reject(noGraUpLocal, new Vector3D(0, 0, 1));
+
+        double lrAngle = Math.Atan2(upNoFB.Y, upNoFB.X) - Math.PI * 0.5;
+        lrAngle = lrAngle * -1;
+
+        SetGyroRoll((lrAngle) * -0.15);
+        needRYP[0] = true;
+
+        Vector3D upNoLR = Vector3D.Reject(noGraUpLocal, new Vector3D(1, 0, 0));
+        
+        double fbAngle = Math.Atan2(upNoLR.Y, upNoLR.Z) - Math.PI * 0.5;
+        fbAngle = fbAngle * -1;
+
+        SetGyroPitch((fbAngle ) * 0.15);
+        needRYP[2] = true;
+      }
+
+      if (!needRYP[0]) SetGyroRoll(angleInput.Z * -0.06 * GYRO_RATE);
+      if (!needRYP[1]) SetGyroYaw(angleInput.Y * 0.03 * GYRO_RATE);
+      if (!needRYP[2]) SetGyroPitch(angleInput.X * -0.03 * GYRO_RATE);
+      if (needRYP.Any(b => b)) SetGyroOverride(true);
+      else SetGyroOverride(false);
+    }
     void balanceGravity()
     {
       if (vtRotors.Count > 0) {
@@ -663,7 +697,10 @@ namespace kradar_p
 
       bool[] needRYP = new bool[] { false, false, false };
       if (mainShipCtrl == null) return;
-      if (pGravity.Length() < 0.01) return;
+      if (pGravity.Length() < 0.01) {
+        balanceNoGravity();
+        return;
+      }
       double ma = shipMaxForceGet() / shipMass;
       double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.8;
 
@@ -803,8 +840,18 @@ namespace kradar_p
     #endregion balanceGravity
 
     #region controlThrust
+    void controlThrustNoGra() {
+      shipThrusts[0].ForEach(tl => tl.ForEach(t => {
+        t.Enabled = true;
+        t.ThrustOverridePercentage = 0;
+      }));
+    }
     void controlThrust()
     {
+      if (pGravity.Length() < 0.01) {
+        controlThrustNoGra();
+        return;
+      }
       Vector3D l2Provide = Vector3D.Zero;
       if (shipThrusts[1][0].Count > 0 && pGravity.Length() > 0.01) {
         var pgn = Vector3D.Normalize(pGravity);
