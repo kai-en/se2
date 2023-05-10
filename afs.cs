@@ -646,8 +646,28 @@ namespace kradar_p
     double GYRO_RATE = 1;
     double AIM_LIMIT = 0.999;
     Vector3D noGraUp = Vector3D.Zero;
+    Vector3D DeadZone(Vector3D i, double l) {
+      if (i.Length() < l) return Vector3D.Zero;
+      return Vector3D.Normalize(i) * (i.Length() - l);
+    }
     void balanceNoGravity() {
-      SetGyroOverride(false);
+      bool[] needRYP = new bool[] { false, false, false };
+
+      if (mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
+        var needD = DeadZone(-shipVelLocalGet(), 0.01);
+        if (needD.Length() > 0) {
+          SetGyroYaw( (Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
+          needRYP[1] = true;
+          SetGyroPitch((Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
+          needRYP[2] = true;
+        }
+      }
+
+      if (!needRYP[0]) SetGyroRoll(angleInput.Z * -0.06 * GYRO_RATE);
+      if (!needRYP[1]) SetGyroYaw(angleInput.Y * 0.03 * GYRO_RATE);
+      if (!needRYP[2]) SetGyroPitch(angleInput.X * -0.03 * GYRO_RATE);
+      if (needRYP.Any(b => b)) SetGyroOverride(true);
+      else SetGyroOverride(false);
     }
     void balanceGravity()
     {
