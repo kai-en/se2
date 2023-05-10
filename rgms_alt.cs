@@ -1094,7 +1094,8 @@ This_Missile_Director.GetTargetedEntity().IsEmpty() == false)
 
         // 2 换算不需要的加速度 平行制导率
         var trueGuideRate = GUIDE_RATE;
-        trueGuideRate *= Math.Max(maxSdl * 0.1D - 3D, 0.5D); // 
+        trueGuideRate *= Math.Max(maxSdl * 0.1D - 3D, 0.5D); //
+        if (RC.GetNaturalGravity().Length() < 0.01) trueGuideRate *= 0.8;
         // trueGuideRate *= 2 + RC.GetNaturalGravity().Length() * 0.1; // times?
         Vector3D rdo;
         if (rv.Length() != 0)

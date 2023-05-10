@@ -656,9 +656,9 @@ namespace kradar_p
       if (mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
         var needD = DeadZone(-shipVelLocalGet(), 0.01);
         if (needD.Length() > 0) {
-          SetGyroYaw( (Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
+          SetGyroYaw( (Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.4 * GYRO_RATE);
           needRYP[1] = true;
-          SetGyroPitch((Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
+          SetGyroPitch((Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.3 * GYRO_RATE);
           needRYP[2] = true;
         }
       }
@@ -831,10 +831,25 @@ namespace kradar_p
 
     #region controlThrust
     void controlThrustNoGra() {
-      shipThrusts[0].ForEach(tl => tl.ForEach(t => {
-        t.Enabled = true;
-        t.ThrustOverridePercentage = 0;
-      }));
+      if (mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
+        shipThrusts[0][T_FRONT].ForEach(t => {
+          t.Enabled = true;
+          t.ThrustOverridePercentage = 0;
+        });
+        shipThrusts[0][T_UP].ForEach(t => {
+          t.Enabled = false;
+          t.ThrustOverridePercentage = 0;
+        });
+        shipThrusts[0][T_FRONT].ForEach(t => {
+          t.Enabled = true;
+          t.ThrustOverridePercentage = 0;
+        });
+      } else {
+        shipThrusts[0].ForEach(tl => tl.ForEach(t => {
+          t.Enabled = true;
+          t.ThrustOverridePercentage = 0;
+        }));
+      }
     }
     void controlThrust()
     {
