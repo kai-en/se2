@@ -657,7 +657,7 @@ namespace kradar_p
       bool[] needRYP = new bool[] { false, false, false };
 
       if (!autoFollow && mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
-        var needD = DeadZone(-shipVelLocalGet(), 0.5);
+        var needD = DeadZone(-shipVelLocalGet(), 0.1);
         if (needD.Length() > 0) {
           SetGyroYaw( (Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.4 * GYRO_RATE);
           needRYP[1] = true;
@@ -665,13 +665,16 @@ namespace kradar_p
           needRYP[2] = true;
         }
       } else if (autoFollow) {
-        var needD = DeadZone(naL1BackLocal, 1);
+        var needD = DeadZone(naL1BackLocal, 0.1);
+        if (needD == Vector3D.Zero) {
+          needD = DeadZone(-shipVelLocalGet(), 0.1);
+        }
         if (needD.Length() > 0) {
           SetGyroYaw( (Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.2 * GYRO_RATE);
           needRYP[1] = true;
           SetGyroPitch((Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.1 * GYRO_RATE);
           needRYP[2] = true;
-        }
+        } 
         var motherUpLocal = Vector3D.TransformNormal(motherMatrixD.Up, shipRevertMat);
         SetGyroRoll((Math.Atan2(-motherUpLocal.Y, -motherUpLocal.X) + Math.PI * 0.5) * 0.1 * GYRO_RATE);
         needRYP[0] = true;
@@ -1323,6 +1326,14 @@ namespace kradar_p
           var needD = Vector3D.Normalize(-pGravity);
           needH -= Vector3D.Dot(shipVelGet() * 0.5, needD);
           na += needD * needH;
+        }
+
+        if (pGravity.Length() < 0.01) {
+          bool backward = Vector3D.Dot(pd, na) < 0;
+          debug("backward?: " + backward + " " + na.Length());
+          if (!backward) {
+            na = DeadZone(na, 0.1);
+          }
         }
       }
 
