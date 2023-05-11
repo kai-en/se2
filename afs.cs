@@ -45,6 +45,7 @@ namespace kradar_p
 
       // decide mode
       decideMode();
+      debug("standby: " + isStandBy);
       debug("ab: " + autoBalance + " ad: " + autoDown + " acc: " + isAcc + " af: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx);
       if (!isStandBy && !docked)
       {
@@ -149,7 +150,9 @@ namespace kradar_p
       pGravity = mainShipCtrl.GetNaturalGravity();
       pGravityLocal = Vector3D.TransformNormal(pGravity, shipRevertMat);
       shipMaxForce = 0;
-      foreach (IMyThrust t in shipThrusts[0][T_UP])
+      int tidx = T_UP;
+      if (pGravity.Length() < 0.01) tidx = T_FRONT;
+      foreach (IMyThrust t in shipThrusts[0][tidx])
       {
         shipMaxForce += t.MaxEffectiveThrust;
       }
@@ -653,14 +656,25 @@ namespace kradar_p
     void balanceNoGravity() {
       bool[] needRYP = new bool[] { false, false, false };
 
-      if (mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
-        var needD = DeadZone(-shipVelLocalGet(), 0.01);
+      if (!autoFollow && mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
+        var needD = DeadZone(-shipVelLocalGet(), 0.5);
         if (needD.Length() > 0) {
           SetGyroYaw( (Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.4 * GYRO_RATE);
           needRYP[1] = true;
           SetGyroPitch((Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.3 * GYRO_RATE);
           needRYP[2] = true;
         }
+      } else if (autoFollow) {
+        var needD = DeadZone(naL1BackLocal, 1);
+        if (needD.Length() > 0) {
+          SetGyroYaw( (Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.2 * GYRO_RATE);
+          needRYP[1] = true;
+          SetGyroPitch((Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.1 * GYRO_RATE);
+          needRYP[2] = true;
+        }
+        var motherUpLocal = Vector3D.TransformNormal(motherMatrixD.Up, shipRevertMat);
+        SetGyroRoll((Math.Atan2(-motherUpLocal.Y, -motherUpLocal.X) + Math.PI * 0.5) * 0.1 * GYRO_RATE);
+        needRYP[0] = true;
       }
 
       if (!needRYP[0]) SetGyroRoll(angleInput.Z * -0.06 * GYRO_RATE);
@@ -831,19 +845,51 @@ namespace kradar_p
 
     #region controlThrust
     void controlThrustNoGra() {
-      if (mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
+      if (!autoFollow && mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
+        var svd = new Vector3D(0, 0, -1);
+        var sv = shipVelGet();
+        if (sv.Length() > 0.01) {
+          svd = Vector3D.Normalize(sv);
+        }
         shipThrusts[0][T_FRONT].ForEach(t => {
-          t.Enabled = true;
+          t.Enabled = Vector3D.Dot(t.WorldMatrix.Forward, svd) > 0.9;
           t.ThrustOverridePercentage = 0;
         });
         shipThrusts[0][T_UP].ForEach(t => {
           t.Enabled = false;
           t.ThrustOverridePercentage = 0;
         });
-        shipThrusts[0][T_FRONT].ForEach(t => {
-          t.Enabled = true;
+      } else if (autoFollow) {
+        shipThrusts[0][T_UP].ForEach(t => {
+          t.Enabled = false;
           t.ThrustOverridePercentage = 0;
         });
+        double mf = 0;
+        Vector3D nad = new Vector3D(0, 0, -1);
+        if (naL1Back.Length() != 0) {
+          nad = Vector3D.Normalize(naL1Back);
+        }
+        foreach(var t in shipThrusts[0][T_FRONT]) {
+          mf += t.MaxEffectiveThrust;
+        }
+        var nf = naL1Back.Length() * shipMass;
+        float per = 0;
+        if (mf > 0) {
+          per = (float)(nf / mf);
+        }
+        shipThrusts[0][T_FRONT].ForEach(t => {
+          
+          var dot = (float)Vector3D.Dot(t.WorldMatrix.Backward, nad);
+          if (dot > 0.9) {
+            t.Enabled = true;
+            t.ThrustOverridePercentage = per;
+          } else {
+            t.Enabled = false;
+            t.ThrustOverridePercentage = 0;
+          }
+          
+        });
+
       } else {
         shipThrusts[0].ForEach(tl => tl.ForEach(t => {
           t.Enabled = true;
@@ -1084,7 +1130,6 @@ namespace kradar_p
     MainTarget mainTarget = new MainTarget();
     void parseRadar(string arguments)
     {
-      debug("standby: " + isStandBy);
       if (arguments == null) return;
       String[] kv = arguments.Split(':');
       if (kv.Length == 1)
@@ -1229,6 +1274,7 @@ namespace kradar_p
     #region calcFollowNA
     Vector3D naL1MainLocal;
     Vector3D naL1BackLocal;
+    Vector3D naL1Back;
     bool[] nabfHave = new bool[]{false, false};
     void calcFollowNA()
     {
@@ -1270,10 +1316,9 @@ namespace kradar_p
             na += aa;
           }
         }
-        if (fpIdx < fpList.Count - 2) {
+        double height = 500;
+        if (fpIdx < fpList.Count - 2 && mainShipCtrl.TryGetPlanetElevation(MyPlanetElevation.Surface, out height)) {
           // avoid planet surface
-          double height = 500;
-          mainShipCtrl.TryGetPlanetElevation(MyPlanetElevation.Surface, out height);
           var needH = MathHelper.Clamp(500 - height, 0, 200) * 0.1;
           var needD = Vector3D.Normalize(-pGravity);
           needH -= Vector3D.Dot(shipVelGet() * 0.5, needD);
@@ -1283,6 +1328,15 @@ namespace kradar_p
 
       if (autoDown) {
         na = shipVelGet() * -0.5;
+      }
+
+      if (pGravity.Length() < 0.01) {
+        naL1MainLocal = Vector3D.Zero;
+        naL1BackLocal = Vector3D.TransformNormal(na, shipRevertMat);
+        naL1Back = na;
+        
+        debug("b: " + display3D(naL1Back));
+        return;
       }
 
       // calc plane need (reject gravity dir)
