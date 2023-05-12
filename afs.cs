@@ -665,7 +665,7 @@ namespace kradar_p
           needRYP[2] = true;
         }
       } else if (autoFollow) {
-        var needD = DeadZone(naL1BackLocal, 0.1);
+        var needD = naL1BackLocal;
         if (needD == Vector3D.Zero) {
           needD = DeadZone(-shipVelLocalGet(), 0.1);
         }
@@ -867,13 +867,10 @@ namespace kradar_p
           t.Enabled = false;
           t.ThrustOverridePercentage = 0;
         });
-        double mf = 0;
+        double mf = shipMaxForceGet();
         Vector3D nad = new Vector3D(0, 0, -1);
         if (naL1Back.Length() != 0) {
           nad = Vector3D.Normalize(naL1Back);
-        }
-        foreach(var t in shipThrusts[0][T_FRONT]) {
-          mf += t.MaxEffectiveThrust;
         }
         var nf = naL1Back.Length() * shipMass;
         float per = 0;
@@ -885,7 +882,7 @@ namespace kradar_p
           var dot = (float)Vector3D.Dot(t.WorldMatrix.Backward, nad);
           if (dot > 0.9) {
             t.Enabled = true;
-            t.ThrustOverridePercentage = per;
+            t.ThrustOverridePercentage = per * dot * dot;
           } else {
             t.Enabled = false;
             t.ThrustOverridePercentage = 0;
@@ -1285,13 +1282,22 @@ namespace kradar_p
       Vector3D na = Vector3D.Zero;
       if (autoFollow) {
         Vector3D pd = motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
+        debug("stop: " + (pGravity.Length() < 0.01) + " " + (fpIdx == 0) + " " + ((shipVelGet() - motherVelocity).Length() < 0.5) + " " + (pd.Length() < 5));
         if (pd.Length() < 20) pd *= 0.23;
         else pd = Vector3D.Normalize(pd) * Math.Sqrt(pd.Length() - 10) * 1.5;
+        if (pGravity.Length() < 0.01 && isDocking && fpIdx == fpList.Count - 1) {
+          pd *= 0.2;
+        }
         Vector3D nv = motherVelocity + pd;
         na = (nv - shipVelGet()) * 0.5;
-        double ma = shipMaxForceGet() / shipMass;
-        double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.4;
-        if (na.Length() > sideALimit) na *= sideALimit / na.Length();
+        if (pGravity.Length() < 0.01 && fpIdx == 0 && (shipVelGet() - motherVelocity).Length() < 0.1 && pd.Length() < 5) {
+          na = Vector3D.Zero;
+        }
+        if (pGravity.Length() > 0.01) {
+          double ma = shipMaxForceGet() / shipMass;
+          double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.4;
+          if(na.Length() > sideALimit) na *= sideALimit / na.Length();
+        }
 
         // avoid 
         foreach (var a in avoidMap)
@@ -1327,12 +1333,17 @@ namespace kradar_p
           needH -= Vector3D.Dot(shipVelGet() * 0.5, needD);
           na += needD * needH;
         }
-
         if (pGravity.Length() < 0.01) {
-          bool backward = Vector3D.Dot(pd, na) < 0;
-          debug("backward?: " + backward + " " + na.Length());
-          if (!backward) {
-            na = DeadZone(na, 0.1);
+          if (pd.Length() > 0.1 && na.Length() > 0.1) {
+            bool backward = Vector3D.Dot(pd, na) < 0;
+            
+            if (!backward) {
+              na = DeadZone(na, 0.2);
+            }
+
+            var pdd = Vector3D.Normalize(pd);
+            var rna = Vector3D.Reject(na, pdd);
+            na += rna * 0.5;
           }
         }
       }
@@ -1340,7 +1351,6 @@ namespace kradar_p
       if (autoDown) {
         na = shipVelGet() * -0.5;
       }
-
       if (pGravity.Length() < 0.01) {
         naL1MainLocal = Vector3D.Zero;
         naL1BackLocal = Vector3D.TransformNormal(na, shipRevertMat);
