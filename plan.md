@@ -191,4 +191,17 @@ pandeV2整合
 - 测试原版雷达 done
 
 # 0507
-- 导弹refueler conn TODO
+- 导弹refueler conn done
+
+
+# 0512
+coco 3ba slider presets?
+https://www.nexusmods.com/skyrimspecialedition/mods/63816
+
+手柄一键重击？
+https://www.nexusmods.com/skyrimspecialedition/mods/72417
+
+coco 浪人
+http://www.9damaogames.com/forum.php?mod=viewthread&tid=218629&highlight=coco%2B%C0%CB%C8%CB
+
+- 转向角速度调整 TODO
