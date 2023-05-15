@@ -204,4 +204,9 @@ https://www.nexusmods.com/skyrimspecialedition/mods/72417
 coco 浪人
 http://www.9damaogames.com/forum.php?mod=viewthread&tid=218629&highlight=coco%2B%C0%CB%C8%CB
 
+ostim?
+https://www.nexusmods.com/skyrimspecialedition/articles/3751
+https://www.nexusmods.com/skyrimspecialedition/articles/4550
+
+
 - 转向角速度调整 TODO

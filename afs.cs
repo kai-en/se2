@@ -117,6 +117,7 @@ namespace kradar_p
     #region checkship
     IMyShipController mainShipCtrl = null;
     Vector3D shipVel = Vector3D.Zero;
+    Vector3D shipAV = Vector3D.Zero;
     Vector3D shipVelLocal = Vector3D.Zero;
     Vector3D shipPosition = Vector3D.Zero;
     MatrixD shipMatrix;
@@ -142,6 +143,7 @@ namespace kradar_p
 
       shipVel = mainShipCtrl.GetShipVelocities().LinearVelocity;
       debug("shipv: " + shipVel.Length());
+      shipAV = mainShipCtrl.GetShipVelocities().AngularVelocity;
       shipRevertMat = MatrixD.CreateLookAt(new Vector3D(), mainShipCtrl.WorldMatrix.Forward, mainShipCtrl.WorldMatrix.Up);
       shipVelLocal = Vector3D.TransformNormal(shipVel, shipRevertMat);
       shipPosition = mainShipCtrl.GetPosition();
@@ -350,6 +352,8 @@ namespace kradar_p
     bool gyroAntiDithering = false;
     void SetGyroYaw(double yawRate)
     {
+      debug("nowyaw: " + Math.Round(shipAV.Y, 2) + " " + Math.Round(yawRate * 60, 2));
+      yawRate -= shipAV.Y * 0.1;
       if (gyroAntiDithering && Math.Abs(yawRate) < gyroDZ) yawRate = rateAdjust(yawRate);
       else yawRate *= 60;
       for (int i = 0; i < shipGyros.Count; i++)
@@ -1282,7 +1286,7 @@ namespace kradar_p
       Vector3D na = Vector3D.Zero;
       if (autoFollow) {
         Vector3D pd = motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
-        debug("stop: " + (pGravity.Length() < 0.01) + " " + (fpIdx == 0) + " " + ((shipVelGet() - motherVelocity).Length() < 0.5) + " " + (pd.Length() < 5));
+        Vector3D pdn = Vector3D.Normalize(pd);
         if (pd.Length() < 20) pd *= 0.23;
         else pd = Vector3D.Normalize(pd) * Math.Sqrt(pd.Length() - 10) * 1.5;
         if (pGravity.Length() < 0.01 && isDocking && fpIdx == fpList.Count - 1) {
@@ -1291,6 +1295,7 @@ namespace kradar_p
         Vector3D nv = motherVelocity + pd;
         na = (nv - shipVelGet()) * 0.5;
         if (pGravity.Length() < 0.01 && fpIdx == 0 && (shipVelGet() - motherVelocity).Length() < 0.1 && pd.Length() < 5) {
+          // stop dead zone
           na = Vector3D.Zero;
         }
         if (pGravity.Length() > 0.01) {
