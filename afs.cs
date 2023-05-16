@@ -37,7 +37,10 @@ namespace kradar_p
 
       // check ship
       checkShip();
-      if (shipThrusts.Count == 0) return;
+      if (shipThrusts.Count == 0) {
+        Echo("No thruster!");
+        return;
+      }
 
       // parse input
       parseInput();
@@ -203,7 +206,8 @@ namespace kradar_p
       }
       if (mainShipCtrl == null) return;
 
-      bool cleanAll = tickGet() % 300 == 0;
+      bool cleanAll = tickGet() % 300 == 0 && !docked;
+      // if docked, don't clean all, because program will get nothing in dock mode
 
       if (cleanAll)
       {
@@ -352,7 +356,6 @@ namespace kradar_p
     bool gyroAntiDithering = false;
     void SetGyroYaw(double yawRate)
     {
-      debug("nowyaw: " + Math.Round(shipAV.Y, 2) + " " + Math.Round(yawRate * 60, 2));
       yawRate -= shipAV.Y * 0.1;
       if (gyroAntiDithering && Math.Abs(yawRate) < gyroDZ) yawRate = rateAdjust(yawRate);
       else yawRate *= 60;
