@@ -146,8 +146,8 @@ namespace kradar_p
 
       shipVel = mainShipCtrl.GetShipVelocities().LinearVelocity;
       debug("shipv: " + shipVel.Length());
-      shipAV = mainShipCtrl.GetShipVelocities().AngularVelocity;
       shipRevertMat = MatrixD.CreateLookAt(new Vector3D(), mainShipCtrl.WorldMatrix.Forward, mainShipCtrl.WorldMatrix.Up);
+      shipAV = Vector3D.TransformNormal(mainShipCtrl.GetShipVelocities().AngularVelocity, shipRevertMat);
       shipVelLocal = Vector3D.TransformNormal(shipVel, shipRevertMat);
       shipPosition = mainShipCtrl.GetPosition();
       shipMatrix = mainShipCtrl.WorldMatrix;
@@ -356,7 +356,7 @@ namespace kradar_p
     bool gyroAntiDithering = false;
     void SetGyroYaw(double yawRate)
     {
-      // yawRate -= shipAV.Y * 0.1;
+      yawRate -= shipAV.Y * -0.1;
       if (gyroAntiDithering && Math.Abs(yawRate) < gyroDZ) yawRate = rateAdjust(yawRate);
       else yawRate *= 60;
       for (int i = 0; i < shipGyros.Count; i++)
