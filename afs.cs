@@ -356,7 +356,7 @@ namespace kradar_p
     bool gyroAntiDithering = false;
     void SetGyroYaw(double yawRate)
     {
-      yawRate -= shipAV.Y * 0.1;
+      yawRate += shipAV.Y * 0.1;
       if (gyroAntiDithering && Math.Abs(yawRate) < gyroDZ) yawRate = rateAdjust(yawRate);
       else yawRate *= 60;
       for (int i = 0; i < shipGyros.Count; i++)
@@ -660,15 +660,20 @@ namespace kradar_p
       if (i.Length() < l) return Vector3D.Zero;
       return Vector3D.Normalize(i) * (i.Length() - l);
     }
+    double modAngle(double i) {
+      if (i > Math.PI) return i - Math.PI;
+      if (i < - Math.PI) return i + Math.PI;
+      return i;
+    }
     void balanceNoGravity() {
       bool[] needRYP = new bool[] { false, false, false };
 
       if (!autoFollow && mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
         var needD = DeadZone(-shipVelLocalGet(), 0.1);
         if (needD.Length() > 0) {
-          SetGyroYaw( (Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.4 * GYRO_RATE);
+          SetGyroYaw( modAngle(Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.4 * GYRO_RATE);
           needRYP[1] = true;
-          SetGyroPitch((Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.3 * GYRO_RATE);
+          SetGyroPitch(modAngle(Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.3 * GYRO_RATE);
           needRYP[2] = true;
         }
       } else if (autoFollow) {
@@ -677,13 +682,13 @@ namespace kradar_p
           needD = DeadZone(-shipVelLocalGet(), 0.1);
         }
         if (needD.Length() > 0) {
-          SetGyroYaw( (Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.2 * GYRO_RATE);
+          SetGyroYaw( modAngle(Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.2 * GYRO_RATE);
           needRYP[1] = true;
-          SetGyroPitch((Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.1 * GYRO_RATE);
+          SetGyroPitch(modAngle(Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.1 * GYRO_RATE);
           needRYP[2] = true;
         } 
         var motherUpLocal = Vector3D.TransformNormal(motherMatrixD.Up, shipRevertMat);
-        SetGyroRoll((Math.Atan2(-motherUpLocal.Y, -motherUpLocal.X) + Math.PI * 0.5) * 0.1 * GYRO_RATE);
+        SetGyroRoll(modAngle(Math.Atan2(-motherUpLocal.Y, -motherUpLocal.X) + Math.PI * 0.5) * 0.1 * GYRO_RATE);
         needRYP[0] = true;
       }
 
@@ -745,9 +750,9 @@ namespace kradar_p
         Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
         Vector3D tarN = Vector3D.Normalize(HitPoint - shipPosition);
 		    tarN = Vector3D.Transform(tarN, shipRevertMat);
-        SetGyroYaw( (Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
+        SetGyroYaw( modAngle(Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
         needRYP[1] = true;
-        SetGyroPitch((Math.Atan2(tarN.Z, tarN.Y) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
+        SetGyroPitch(modAngle(Math.Atan2(tarN.Z, tarN.Y) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
         needRYP[2] = true;
         
         // fire
@@ -766,7 +771,7 @@ namespace kradar_p
         lrAngle = -lrAngle * 1;
         double cRoll = Math.Atan2(pGravityLocal.Y, pGravityLocal.X) + Math.PI * 0.5;
 
-        SetGyroRoll((lrAngle - cRoll) * -0.15);
+        SetGyroRoll(modAngle(lrAngle - cRoll) * -0.15);
         needRYP[0] = true;
       }
 
@@ -786,7 +791,7 @@ namespace kradar_p
         fbAngle = -fbAngle * 1;
         double cPitch = Math.Atan2(pGravityLocal.Y, pGravityLocal.Z) + Math.PI * 0.5;
 
-        SetGyroPitch((fbAngle - cPitch) * 0.15);
+        SetGyroPitch(modAngle(fbAngle - cPitch) * 0.15);
         needRYP[2] = true;
       }
 
@@ -799,8 +804,8 @@ namespace kradar_p
           var motherPoint = Vector3D.TransformNormal(followGetForward(), shipRevertMat);
           var angle = Math.Atan2(motherPoint.Z, motherPoint.X);
           angle = Math.PI * 0.5 + angle;
-          angle = utilMyClamp(angle, 0.2);
-          SetGyroYaw(angle * 0.2);
+          // angle = utilMyClamp(angle, 0.2);
+          SetGyroYaw(modAngle(angle) * 0.2);
           needRYP[1] = true;
 
           // pitch
@@ -809,7 +814,7 @@ namespace kradar_p
           double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z + nv) - Math.PI * 0.5;
           fbAngle = fbAngle * 1;
           double cPitch = Math.Atan2(pGravityLocal.Y, pGravityLocal.Z) + Math.PI * 0.5;
-          SetGyroPitch((fbAngle - cPitch) * 0.3);
+          SetGyroPitch(modAngle(fbAngle - cPitch) * 0.3);
           needRYP[2] = true;
         }
 
@@ -822,7 +827,7 @@ namespace kradar_p
         lrAngle = lrAngle * 1;
         double cRoll = Math.Atan2(pGravityLocal.Y, pGravityLocal.X) + Math.PI * 0.5;
 
-        SetGyroRoll((lrAngle - cRoll) * -0.3);
+        SetGyroRoll(modAngle(lrAngle - cRoll) * -0.3);
         needRYP[0] = true;
       }
 
