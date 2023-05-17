@@ -356,7 +356,7 @@ namespace kradar_p
     bool gyroAntiDithering = false;
     void SetGyroYaw(double yawRate)
     {
-      yawRate += shipAV.Y * 0.1;
+      // yawRate += shipAV.Y * 0.1;
       if (gyroAntiDithering && Math.Abs(yawRate) < gyroDZ) yawRate = rateAdjust(yawRate);
       else yawRate *= 60;
       for (int i = 0; i < shipGyros.Count; i++)
