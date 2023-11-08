@@ -485,8 +485,9 @@ public void ShowMainLCD()
 		info += "  " + R.Name + "            " + R.Weapons.Count + "                  " + FunctionalPersent + "%" + br;
 	}
 	foreach(IMyTextPanel lcd in Lcds){
-		lcd.ShowPublicTextOnScreen();
-		lcd.WritePublicText(info);
+		//lcd.ShowPublicTextOnScreen();
+		var surface = ((IMyTextSurfaceProvider)lcd).GetSurface(0);
+		panel.WriteText(info);
 	}
 }
 
@@ -776,7 +777,7 @@ public class RotorBase
 		onXs = onXs.Select(toRa).ToList();
 		cfg.Get("onYs", ref onYs);
 		onYs = onYs.Select(toRa).ToList();
-		cfg.Get("ras", ref ras);
+		cfg.Get("ras", ref ras);var
 		ras = ras.Select(toRa).ToList();
 		cfg.Get("raDs", ref raDs);
 		raDs = raDs.Select(v => (float)Math.Cos(toRa(v))).ToList();
@@ -1473,8 +1474,9 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 		info += " 武器数量: " + this.Weapons.Count + br;
 		info += " 摄像头数: " + this.Cameras.Count + br;
 		foreach(IMyTextPanel lcd in this.LCDs){
-			lcd.ShowPublicTextOnScreen();
-			lcd.WritePublicText(info);
+			//lcd.ShowPublicTextOnScreen();
+			var surface = ((IMyTextSurfaceProvider)lcd).GetSurface(0);
+			panel.WriteText(info);
 		}
 	}
 }
