@@ -377,7 +377,8 @@ void Debug(){
 	infodebug += " 理论加速度:" + Math.Round(MaxEffectiveThrust/ShipMass.PhysicalMass, 2) + br;
 	infodebug += " 实际加速度:" + Vector3D.Round(AToMe, 2).Z + br;
 	*/
-	debugLCD.ForEach(delegate(IMyTextPanel lcd){lcd.WritePublicText("");});
+	debugLCD.ForEach(delegate(IMyTextPanel lcd){var surface = ((IMyTextSurfaceProvider)lcd).GetSurface(0);
+			surface.WriteText("");});
 	
 	//验证了实际加速度就是所有该方向推进器 MaxEffectiveThrust 产生的推力和 除以 Cockpit.CalculateShipMass().PhysicalMass
 }
@@ -465,7 +466,9 @@ void ShipScan(){
 		
 		Vector3D Point = MyShip.Cockpit.GetPosition() + direction*SearchDistance;
 		if(!tHas && radarOutputLCD!=null) {
-			 var roText = radarOutputLCD.GetPublicText();
+			var surface = ((IMyTextSurfaceProvider)radarOutputLCD).GetSurface(0);
+			var roText = surface.GetText();
+			 //var roText = radarOutputLCD.GetPublicText();
 			 /*
 GPS:Radar - Huge unknown object:12352:2175:6850: - {X:122.5 Y:60 Z:280}
 			 */
@@ -896,7 +899,8 @@ void ShowInfoLCD(){
 	foreach(IMyTextSurface lcd in InfoLCD){
 		lcd.FontColor=ccolor;
 		//lcd.ShowPublicTextOnScreen();
-		lcd.WriteText(info);
+		var surface = ((IMyTextSurfaceProvider)lcd).GetSurface(0);
+		surface.WriteText(info);
 	}
 	foreach(IMyTextSurface lcd in LightLCD){
 		lcd.BackgroundColor=ccolor;

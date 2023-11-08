@@ -487,7 +487,7 @@ public void ShowMainLCD()
 	foreach(IMyTextPanel lcd in Lcds){
 		//lcd.ShowPublicTextOnScreen();
 		var surface = ((IMyTextSurfaceProvider)lcd).GetSurface(0);
-		panel.WriteText(info);
+		surface.WriteText(info);
 	}
 }
 
@@ -777,7 +777,7 @@ public class RotorBase
 		onXs = onXs.Select(toRa).ToList();
 		cfg.Get("onYs", ref onYs);
 		onYs = onYs.Select(toRa).ToList();
-		cfg.Get("ras", ref ras);var
+		cfg.Get("ras", ref ras);
 		ras = ras.Select(toRa).ToList();
 		cfg.Get("raDs", ref raDs);
 		raDs = raDs.Select(v => (float)Math.Cos(toRa(v))).ToList();
@@ -1476,7 +1476,7 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 		foreach(IMyTextPanel lcd in this.LCDs){
 			//lcd.ShowPublicTextOnScreen();
 			var surface = ((IMyTextSurfaceProvider)lcd).GetSurface(0);
-			panel.WriteText(info);
+			surface.WriteText(info);
 		}
 	}
 }
