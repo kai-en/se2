@@ -2363,6 +2363,7 @@ class KRadarElement
 
     public double error; // update for each target
 }
+List<KRadarElement> kradarPosList = new List<KRadarElement>();
 
 void parseKRadarTarget()
 {
@@ -2370,7 +2371,7 @@ void parseKRadarTarget()
     var data = kradarPanel.GetText();
     if(data == null) data = "";
     string[] lines = data.Split('\n');
-    List<KRadarElement> kradarPosList = new List<KRadarElement>();
+    
     bool firstLine = true;
     foreach (var l in lines)
     {
@@ -2381,6 +2382,7 @@ void parseKRadarTarget()
             if (updateFrame == kradarLastUpdate) break;
             kradarLastUpdate = updateFrame;
             firstLine = false;
+            kradarPosList.Clear();
             continue;
         }
         if (l == null || l.Length == 0) continue;
@@ -2425,12 +2427,15 @@ void parseKRadarTarget()
     // get all kradar target
     List<KRadarTargetData> kradarTargetList = targetDataDict.Where(x => x.Value is KRadarTargetData).Select(x => (KRadarTargetData)x.Value).ToList();
 
+    debug("kp count: " + kradarPosList.Count() + " " + kradarTargetList.Count());
+    kradarPosList.ForEach(kp => {kp.occupied = false;});
     // predict pos and best match
     foreach (var kt in kradarTargetList)
     {
         if (t - kt.lastFrame > KRadarTargetData.MAX_LIVE_FRAME)
         {
             targetDataDict.Remove(kt.id);
+            debug("lf over");
             continue;
         }
         var dt = t - kt.lastFrame;
@@ -2448,8 +2453,11 @@ void parseKRadarTarget()
 
         var matchList = kradarPosList.Where(x => x.occupied == false).OrderBy(x => x.error);
         KRadarElement found = null;
+        //debug("mlcount: " + matchList.Count);
+        string debugString = "";
         foreach (var kp in matchList)
         {
+            debugString += (kp.error + " " + kt.size + " " + kp.size + " ");
             if (kp.error < KRadarTargetData.POS_ABS_ERROR &&
                 (kt.size != 0 && (Math.Abs(kt.size - kp.size) / kt.size) < KRadarTargetData.SIZE_RATIO_ERROR))
             {
@@ -2457,6 +2465,7 @@ void parseKRadarTarget()
                 break;
             }
         }
+        debug(debugString);
 
         if (found != null)
         {
@@ -2482,9 +2491,13 @@ void parseKRadarTarget()
     }
 
     // find left kpos, create new kradar target
+    int foundCount = 0;
     foreach (var kp in kradarPosList)
     {
-        if (kp.occupied) continue;
+        if (kp.occupied) {
+            foundCount ++;
+            continue;
+        }
         var newID = KRadarTargetData.maxId++;
         KRadarTargetData newTarget = new KRadarTargetData(kp.pos, TargetRelation.Enemy, MAX_REBROADCAST_INGEST_COUNT, Vector3D.Zero, MOTHER_CODE, new MatrixD(), 0,t, TargetData.PR_KRADAR);
         newTarget.realPos = kp.pos;
@@ -2514,6 +2527,7 @@ void parseKRadarTarget()
         }
         ts.WriteText(sb.ToString());
     }
+    debug("foundCount: " + foundCount);
 }
 
 void debug(string v)

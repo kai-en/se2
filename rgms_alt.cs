@@ -829,16 +829,16 @@ public IEnumerable<bool> MissileLaunchHandler()
 
         if (ThisMissile.POWER != null && ThisMissile.POWER is IMyBatteryBlock)
         {
-            POWER_A.ApplyAction("OnOff_Off");
+            //POWER_A.ApplyAction("OnOff_Off");
             //POWER_A.SetValue("Recharge", false);
             //POWER_A.SetValue("Discharge", true);
             ThisMissile.MissileMass += POWER_A.Mass;
         }
-        yield return true;
+        //yield return true;
 
         if (ThisMissile.POWER != null && ThisMissile.POWER is IMyBatteryBlock)
         {
-            POWER_A.ApplyAction("OnOff_On");
+            //POWER_A.ApplyAction("OnOff_On");
             //POWER_A.SetValue("Recharge", false);
             //POWER_A.SetValue("Discharge", true);
             //ThisMissile.MissileMass += POWER_A.Mass;
