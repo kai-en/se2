@@ -267,3 +267,5 @@ https://www.nexusmods.com/skyrimspecialedition/articles/4550
 初始4格 后退3格 每层2格
 
 一层右侧 衣服模特 浴池
+
+https://xenosaga.fandom.com/wiki/Elsa

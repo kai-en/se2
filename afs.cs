@@ -9,6 +9,7 @@ using VRage.Game;
 using VRage.Game.ModAPI.Ingame;
 using VRageMath;
 using VRage.Game.ModAPI.Ingame.Utilities;
+using SharpDX.XInput;
 
 namespace kradar_p
 {
@@ -28,8 +29,9 @@ namespace kradar_p
       // parse command
       parseRadar(arguments);
 
-      if ((updateType & UpdateType.Update1) == 0) {
-        return;
+      // if ((updateType != null) && ((updateType & UpdateType.Update1) == 0)) {
+      if (updateType == UpdateType.Update1) {
+        // return;
       }
       
       tickPlus();
@@ -58,13 +60,13 @@ namespace kradar_p
         // calcFollowNA
         calcFollowNA();
 
-        // turn level 1
+        // thrust direction level 1 (ship direction)
         balanceGravity();
 
         // adjust thrust level 1
         controlThrust();
 
-        // turn level 2
+        // thrust direction level 2
 
         // adjust thrust level 2
       }
@@ -86,6 +88,13 @@ namespace kradar_p
     #endregion tick
 
     #region debug
+    string staticDebugInfo;
+    void debugStatic(string si) {
+      staticDebugInfo += si + "\n";
+    }
+    void debugStaticClear() {
+      staticDebugInfo = "";
+    }
     string debugInfo;
     void debug(string info)
     {
@@ -100,6 +109,7 @@ namespace kradar_p
     {
       Echo("Kaien Automatic Fly System V0.1 " + runIndiStr[tickGet() / 10 % 4] + "\n");
       Echo(debugInfo);
+      Echo(staticDebugInfo);
     }
     double[] minmax = new double[100];
     int minmaxIdx = 0;
@@ -173,9 +183,14 @@ namespace kradar_p
       }
       debug("found enemy: " + foundId);
       MyDetectedEntityInfo te;
-      if (turret != null) {
-        te = turret.GetTargetedEntity();
-      }
+      tuBlocks.ForEach( tu => {
+        MyDetectedEntityInfo t;
+        t = tu.GetTargetedEntity();
+        if (t.EntityId != 0) {
+          te = t;
+        }
+      });
+      // TODO setup mainTarget, only needed if don't have radar program
     }
     double shipMaxForceGet() {
       return shipMaxForce;
@@ -192,7 +207,8 @@ namespace kradar_p
     MyIni cfg;
     const string CFG_GENERAL = "AFS - General";
     IMyOffensiveCombatBlock aiOffensive; // TODO how to get hitpoint?
-    IMyTurretControlBlock turret;
+    List<IMyTurretControlBlock> tuBlocks = new List<IMyTurretControlBlock>();
+
     const string IGNORE_TAG = "#A#";
     void getBlocks()
     {
@@ -227,7 +243,9 @@ namespace kradar_p
       if (shipThrusts.Count == 0 && !connected) getThrusts();
 
       if (cleanAll && !connected) {
-        GridTerminalSystem.GetBlocksOfType<IMyUserControllableGun>(shipWeapons, b=> !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
+        GridTerminalSystem.GetBlocksOfType<IMyUserControllableGun>(shipWeapons, b=> !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG) && !(b is IMyLargeTurretBase));
+        // debugStaticClear();
+        // shipWeapons.ForEach(sw => debugStatic(sw.GetType() + ""));
       }
 
       if (cleanAll) { 
@@ -239,11 +257,8 @@ namespace kradar_p
       }
 
       if (cleanAll && !connected) {
-        List<IMyTurretControlBlock> tuBlocks = new List<IMyTurretControlBlock>();
+        tuBlocks.Clear();
         GridTerminalSystem.GetBlocksOfType<IMyTurretControlBlock>(tuBlocks, b => !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
-        if (tuBlocks.Count > 0) {
-          turret = tuBlocks[0];
-        }
       }
     }
     void getGyros()
@@ -640,12 +655,21 @@ namespace kradar_p
     #endregion decideMode
 
     #region balanceGravity
-    double WEAPON_MAX_RANGE = 800;
-    double axisYOffset = 0.5;
-    double axisBs = 350;
-    double axisGr = 0.75;
-    double axisBr = 800;
-    double axisCr = -0.13;
+    string CfgGet(string key, string dv) {
+      String tmp = cfg.Get(CFG_GENERAL, key).ToString();
+      if (tmp == "") {
+        tmp = dv;
+        cfg.Set(CFG_GENERAL, key, dv);
+        Me.CustomData = cfg.ToString();
+      }
+      return tmp;
+    }
+
+    double axisYOffset = 0;
+    double axisBs = 0;
+    double axisGr = 0;
+    double axisBr = 0;
+    double axisCr = 0;
 /*     MAIN_CANNON_BS=350
     MAIN_CANNON_BR=800
     MAIN_CANNON_GR=0.75
@@ -655,6 +679,10 @@ namespace kradar_p
     // IMySmallGatlingGun    IMySmallMissileLauncher
     double GYRO_RATE = 1;
     double AIM_LIMIT = 0.999;
+
+    bool AIM_AUTO = false;
+    long AIM_DELAY = 1;
+
     Vector3D noGraUp = Vector3D.Zero;
     Vector3D DeadZone(Vector3D i, double l) {
       if (i.Length() < l) return Vector3D.Zero;
@@ -726,11 +754,22 @@ namespace kradar_p
       bool haveTarget = false;
       if (tickGet() - mainTarget.lastTime < 120 ) {
         Vector3D tp = mainTarget.estPosition(tickGet());
-        if ((shipPosition - tp).Length() < WEAPON_MAX_RANGE) {
+        if ((shipPosition - tp).Length() < axisBr) {
           haveTarget = true;
         }
       }
-      if (tickGet() - suspendStart < 300) haveTarget = false;
+      if (haveTarget == true && aimStart == 0) aimStart = tickGet();
+      if (tickGet() - suspendStart < 300) {
+        if (AIM_AUTO) {
+          haveTarget = false;
+          aimStart = 0;
+        }
+      } else {
+        if (!AIM_AUTO) {
+          haveTarget = false;
+          aimStart = 0;
+        }
+      }
       String aostr = cfg.Get(CFG_GENERAL, "AIM_OFFSET").ToString();
       if (aostr == "") {
         aostr = "0.5";
@@ -745,6 +784,48 @@ namespace kradar_p
         Me.CustomData = cfg.ToString();
       }
       double.TryParse(alstr, out AIM_LIMIT);
+
+      string aimAutoStr = cfg.Get(CFG_GENERAL, "AIM_AUTO").ToString();
+      if (aimAutoStr == "") {
+        aimAutoStr = "False";
+        cfg.Set(CFG_GENERAL, "AIM_AUTO", aimAutoStr);
+        Me.CustomData = cfg.ToString();
+      }
+      bool.TryParse(aimAutoStr, out AIM_AUTO);
+
+      String aimDelayStr = cfg.Get(CFG_GENERAL, "AIM_DELAY").ToString();
+      if (aimDelayStr == "") {
+        aimDelayStr = "1";
+        cfg.Set(CFG_GENERAL, "AIM_DELAY", aimDelayStr);
+        Me.CustomData = cfg.ToString();
+      }
+      long.TryParse(aimDelayStr, out AIM_DELAY);
+
+      if (axisYOffset == 0) {
+        string str = CfgGet("WEAPON_OFFSET_Y", "0.5");
+        double.TryParse(str, out axisYOffset);
+      }
+
+      if (axisBs == 0) {
+        string str = CfgGet("WEAPON_BULLET_SPEED", "350");
+        double.TryParse(str, out axisBs);
+      }
+
+      if (axisGr == 0) {
+        string str = CfgGet("WEAPON_GRAVITY_AFFECT", "0.75");
+        double.TryParse(str, out axisGr);
+      }
+
+      if (axisBr == 0) {
+        string str = CfgGet("WEAPON_RANGE", "800");
+        double.TryParse(str, out axisBr);
+      }
+
+      if (axisCr == 0) {
+        string str = CfgGet("WEAPON_CURVE", "-0.13");
+        double.TryParse(str, out axisCr);
+      }
+
       if (haveTarget) {
         // aim 
         Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
@@ -756,7 +837,7 @@ namespace kradar_p
         needRYP[2] = true;
         
         // fire
-        if (tarN.Z < -AIM_LIMIT) shipWeapons.ForEach(w => w.ShootOnce());
+        if ((tarN.Z < -AIM_LIMIT) && (tickGet() > (aimStart + AIM_DELAY * 60))) shipWeapons.ForEach(w => w.ShootOnce());
       }
 
       if (needBalance)
@@ -771,7 +852,7 @@ namespace kradar_p
         lrAngle = -lrAngle * 1;
         double cRoll = Math.Atan2(pGravityLocal.Y, pGravityLocal.X) + Math.PI * 0.5;
 
-        SetGyroRoll(modAngle(lrAngle - cRoll) * -0.15);
+        SetGyroRoll(modAngle(lrAngle - cRoll) * -0.15 * GYRO_RATE);
         needRYP[0] = true;
       }
 
@@ -791,7 +872,7 @@ namespace kradar_p
         fbAngle = -fbAngle * 1;
         double cPitch = Math.Atan2(pGravityLocal.Y, pGravityLocal.Z) + Math.PI * 0.5;
 
-        SetGyroPitch(modAngle(fbAngle - cPitch) * 0.15);
+        SetGyroPitch(modAngle(fbAngle - cPitch) * 0.15 * GYRO_RATE);
         needRYP[2] = true;
       }
 
@@ -805,7 +886,7 @@ namespace kradar_p
           var angle = Math.Atan2(motherPoint.Z, motherPoint.X);
           angle = Math.PI * 0.5 + angle;
           // angle = utilMyClamp(angle, 0.2);
-          SetGyroYaw(modAngle(angle) * 0.2);
+          SetGyroYaw(modAngle(angle) * 0.2 * GYRO_RATE);
           needRYP[1] = true;
 
           // pitch
@@ -814,7 +895,7 @@ namespace kradar_p
           double fbAngle = Math.Atan2(-graNoLR.Y, -graNoLR.Z + nv) - Math.PI * 0.5;
           fbAngle = fbAngle * 1;
           double cPitch = Math.Atan2(pGravityLocal.Y, pGravityLocal.Z) + Math.PI * 0.5;
-          SetGyroPitch(modAngle(fbAngle - cPitch) * 0.3);
+          SetGyroPitch(modAngle(fbAngle - cPitch) * 0.3 * GYRO_RATE);
           needRYP[2] = true;
         }
 
@@ -827,7 +908,7 @@ namespace kradar_p
         lrAngle = lrAngle * 1;
         double cRoll = Math.Atan2(pGravityLocal.Y, pGravityLocal.X) + Math.PI * 0.5;
 
-        SetGyroRoll(modAngle(lrAngle - cRoll) * -0.3);
+        SetGyroRoll(modAngle(lrAngle - cRoll) * -0.3 * GYRO_RATE);
         needRYP[0] = true;
       }
 
@@ -1131,6 +1212,7 @@ namespace kradar_p
     bool cmdDock;
     bool cmdControl;
     long suspendStart = 0;
+    long aimStart = 0;
     class MainTarget {
       public Vector3D position;
       public Vector3D velocity;
@@ -1143,6 +1225,7 @@ namespace kradar_p
     void parseRadar(string arguments)
     {
       if (arguments == null) return;
+      if (mainShipCtrl == null ) return;
       String[] kv = arguments.Split(':');
       if (kv.Length == 1)
       {

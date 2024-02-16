@@ -1444,7 +1444,8 @@ bool INIT_NEXT_MISSILE()
             }
             else if (launchMode == 1)
             {
-                var sts = radarTargets.Values.Where(x => x.isHighThreaten && !(firedThreatenIds.Contains(x.id)));
+                // var sts = radarTargets.Values.Where(x => x.isHighThreaten && !(firedThreatenIds.Contains(x.id)));
+                var sts = radarTargets.Values.Where(x => !(firedThreatenIds.Contains(x.id)));
                 if (sts.Any())
                 {
                     NEW_MISSILE.targetId = sts.First().id;
