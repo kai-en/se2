@@ -2513,6 +2513,7 @@ void parseKRadarTarget()
     {
         IMyTextSurface ts = ((IMyTextSurfaceProvider)Me).GetSurface(0);
         StringBuilder sb = new StringBuilder();
+        sb.Append(kradarLastUpdate+"\n");
         foreach (var kt in kradarTargetList)
         {
             if (kt.isDisabled) continue;

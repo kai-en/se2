@@ -62,7 +62,7 @@ static long AUTO_FIRE_INTERVAL = 600;
 static long AUTO_FIRE_MAX = 4;
 
 static int launchMode = 0;
-static Dictionary<long, RadarTarget> radarTargets;
+static Dictionary<long, RadarTarget> radarTargets = new Dictionary<long, RadarTarget>();
 static HashSet<long> firedThreatenIds = new HashSet<long>();
 
 IMyTerminalBlock pgtimer = null;
@@ -126,6 +126,7 @@ class RadarTarget
     public bool isHighThreaten;
     public Vector3D position;
     public Vector3D velocity;
+    public long lastT;
 }
 class MISSILE
 {
@@ -286,6 +287,7 @@ List<Refueler> refuelerList = new List<Refueler>();
 
 //Initialiser
 #region Setup Stages
+long t = 0;
 Program()
             {
     //Sets Runtime
@@ -389,6 +391,8 @@ Program()
     if(tList.Any()) { 
         aimBlock = tList.First();
     }
+
+    t++;
 }
 #endregion
 
@@ -572,7 +576,7 @@ void Main(string argument)
 
     }
 
-    bool haveRadar = checkRadarTarget(out radarTargets);
+    bool haveRadar = checkRadarTarget();
 
     //Runs Guidance Block (foreach missile)
     //---------------------------------------
@@ -596,7 +600,7 @@ void Main(string argument)
             bool haveTarget = radarTargets.TryGetValue(ThisMissile.targetId, out radarTarget);
             if (haveTarget || !ThisMissile.IS_CLEAR)
             {
-                STD_GUIDANCE(ThisMissile, ThisMissile.IS_CLEAR, radarTarget.position, radarTarget.velocity, true);
+                STD_GUIDANCE(ThisMissile, ThisMissile.IS_CLEAR, radarTarget.position + (radarTarget.velocity * (t - radarTarget.lastT) * (1.0 / 60)), radarTarget.velocity, true);
             }
             else
             {
@@ -646,19 +650,31 @@ void Main(string argument)
     Echo(debugInfo);
 }
 
-bool checkRadarTarget(out Dictionary<long, RadarTarget> radarTargets)
+long kradarLastUpdate = 0;
+bool checkRadarTarget()
 {
-    radarTargets = new Dictionary<long, RadarTarget>();
+    // radarTargets = new Dictionary<long, RadarTarget>();
     if (radarSurface == null) return false;
     string text = radarSurface.GetText();
     if (text == null || text.Length == 0) return false;
     string[] lines = text.Split('\n');
+    bool isFl = true;
+    long newKradarLastUpdate = 0;
     foreach (var l in lines)
     {
         if (l == null || l.Length == 0) continue;
+        if (isFl) {
+            long.TryParse(l, out newKradarLastUpdate);
+            if (kradarLastUpdate == newKradarLastUpdate) break;
+            kradarLastUpdate = newKradarLastUpdate;
+            radarTargets.Clear();
+            isFl = false;
+            continue;
+        }
         string[] fields = l.Split(':');
         if (fields.Count() < 9) continue;
         RadarTarget radarTarget = new RadarTarget();
+        radarTarget.lastT = t;
         double x, y, z, vx, vy, vz;
         bool allRead = true;
         allRead &= long.TryParse(fields[0], out radarTarget.id);
