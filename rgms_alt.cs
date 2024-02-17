@@ -600,8 +600,8 @@ void Main(string argument)
             }
             else
             {
-                foreach (var item in ThisMissile.WARHEADS) { (item as IMyWarhead).IsArmed = true; }
-                foreach (var item in ThisMissile.WARHEADS) { (item as IMyWarhead).Detonate(); }
+                // foreach (var item in ThisMissile.WARHEADS) { (item as IMyWarhead).IsArmed = true; }
+                // foreach (var item in ThisMissile.WARHEADS) { (item as IMyWarhead).Detonate(); }
                 ThisMissile.markRemove = true;
             }
         }
@@ -1452,10 +1452,10 @@ bool INIT_NEXT_MISSILE()
                     firedThreatenIds.Add(NEW_MISSILE.targetId);
                     radarReady = true;
                 }
-                else
-                {
-                    break;
-                }
+                // else
+                // {
+                //     break;
+                // }
             }
         }
 
