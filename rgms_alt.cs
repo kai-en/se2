@@ -807,11 +807,13 @@ public IEnumerable<bool> MissileLaunchHandler()
         MISSILE ThisMissile = MISSILES[MISSILES.Count - 1];
         ThisMissile.GYRO.ApplyAction("OnOff_On");
 
+        if (ThisMissile.CONN != null) {
+            ThisMissile.CONN.Disconnect();
+            yield return true;
+        }
+
         var MERGE_A = ThisMissile.MERGE;
         (MERGE_A as IMyShipMergeBlock).Enabled = false;
-
-        if (ThisMissile.CONN != null) ThisMissile.CONN.Disconnect();
-
         
         for (int k = 0; k < dropTime; k++) {
         	yield return true;
@@ -823,26 +825,26 @@ public IEnumerable<bool> MissileLaunchHandler()
             //if (!debugMode) thruster.ThrustOverridePercentage = 1;
         }
 
-        var POWER_A = ThisMissile.POWER;
+        // var POWER_A = ThisMissile.POWER;
 
-        yield return true;
+        // yield return true;
 
-        if (ThisMissile.POWER != null && ThisMissile.POWER is IMyBatteryBlock)
-        {
-            POWER_A.ApplyAction("OnOff_Off");
-            //POWER_A.SetValue("Recharge", false);
-            //POWER_A.SetValue("Discharge", true);
-            ThisMissile.MissileMass += POWER_A.Mass;
-        }
-        yield return true;
+        // if (ThisMissile.POWER != null && ThisMissile.POWER is IMyBatteryBlock)
+        // {
+        //     POWER_A.ApplyAction("OnOff_Off");
+        //     //POWER_A.SetValue("Recharge", false);
+        //     //POWER_A.SetValue("Discharge", true);
+        //     ThisMissile.MissileMass += POWER_A.Mass;
+        // }
+        // yield return true;
 
-        if (ThisMissile.POWER != null && ThisMissile.POWER is IMyBatteryBlock)
-        {
-            POWER_A.ApplyAction("OnOff_On");
-            //POWER_A.SetValue("Recharge", false);
-            //POWER_A.SetValue("Discharge", true);
-            //ThisMissile.MissileMass += POWER_A.Mass;
-        }
+        // if (ThisMissile.POWER != null && ThisMissile.POWER is IMyBatteryBlock)
+        // {
+        //     POWER_A.ApplyAction("OnOff_On");
+        //     //POWER_A.SetValue("Recharge", false);
+        //     //POWER_A.SetValue("Discharge", true);
+        //     //ThisMissile.MissileMass += POWER_A.Mass;
+        // }
 
         // 
         //for (int i = 0; i < 5; i++) yield return true;

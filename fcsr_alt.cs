@@ -71,7 +71,7 @@ static bool OnlyAttackUpPlane = false; //自动选择目标时是否只选择转
 
 // =============== 基础设置 =============
 //再次强调，每个转子炮台的所有零件必须在同一个编组中，并且这个编组中必须有一个名字包含 AimBlockKey关键字的方块用于瞄准。多个转子炮台的方块应该各自放在自己的编组，不允许冲突。
-const string FCSComputerNameTag = "Programmable Block fcs"; //FCS编程块名字，用于读取其中目标，非必须。
+const string FCSComputerNameTag = "Programmable block fcs"; //FCS编程块名字，用于读取其中目标，非必须。
 const string AimBlockKey = "FCS#R"; //瞄准块名字关键字，可以写在名字中，只要包含这个关键字即可。
 const string LCDNameTag = "FCSR_LCD"; //LCD名字，用来显示各个目标和炮台信息，非必须，也可以是多个。
 const string RotorNagtiveTag = "[-]"; //转子负转标签。当转子名字里完全包含这个标签的时候，它会被强制认为是反向控制的转子。用来解决某些特殊结构的转子问题
@@ -267,6 +267,7 @@ void Main(string arguments)
 	//这里获取了自动武器和所有的转子基座炮塔
 	if(!init){GetBlocks(); return;}
 	
+	debugInfo += "\nisOn: " + isOnOff;
             debugInfo += "\nFCSR Count: " + FCSR.Count;
 	foreach ( var r in FCSR ) {
 		debugInfo += "\n" + r.debugInit + "\n" + r.debugInfo + "\n" + r.debugInfoInter;
@@ -274,8 +275,9 @@ void Main(string arguments)
 	
 	//生成目标，每个自动武器一个目标，每个转子基座炮台自动索敌一个目标，加一个FCS编程块目标
 	TargetList = new List<Target>();
-	//获取FCS目标
+	//获取fcs目标
 	TargetList.AddRange(GetFcsTargetList());
+	//获取kradar目标
 	bool haveRadar = checkRadarTarget(out radarTargets);
 	if(haveRadar) { 
 	    TargetList.AddRange(radarTargets.Values.Select(delegate(RadarTarget rt) {
@@ -290,13 +292,7 @@ void Main(string arguments)
 			return ret;
 		}).ToList());
 	}
-	// Target FCS_T = new Target();
-	// FCS_T.GetTarget(GridTerminalSystem.GetBlockWithName(FCSComputerNameTag) as IMyProgrammableBlock);
-	// if(FCS_T.EntityId != 0){
-	// 	debugInfo += "\nGet fcs_t"; 
-        //                 FCS_T.isFCS=true;
-	// 	TargetList.Add(FCS_T);
-	// }
+
 	//获取自动武器目标
 	bool hav = false;
 	for(int i = 0; i < AutoWeapons.Count; i ++){
@@ -1190,10 +1186,10 @@ public class RotorBase
 						// a b k filter direction use ra and raD
 						if (msc != null && raDs[cuMode] != -1)
 						{
-							//this.debugInfo = "\nra: " + this.ra;
+							this.debugInfoInter = "\nra: " + this.ras[cuMode];
 							Vector3D mid = msc.WorldMatrix.Right * Math.Sin(this.ras[cuMode]) + msc.WorldMatrix.Forward * Math.Cos(this.ras[cuMode]);
 							Vector3D tar = Vector3D.Normalize(targetList[i].Position - this.Position);
-							//this.debugInfo += "\n dirYN: " + (Vector3D.Dot(mid, tar));
+							this.debugInfoInter += "\n dot: " + (Vector3D.Dot(mid, tar)) + "\n need: " + this.raDs[cuMode];
 							dot = Vector3D.Dot(mid, tar);
 							if (dot < this.raDs[cuMode]) continue;
 						}
@@ -1381,7 +1377,7 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 		double aa=0, ea=0;
 		Vector3D.GetAzimuthAndElevation(tpToRc, out aa, out ea);
 		ea*=eaRate;
-		this.debugInfoInter += $"\n{this.Name}";
+		if (t % frameInterval == this.refreshFrame) this.debugInfoInter += $"\n{this.Name}";
 		//debugInfo += "\naaea: " + Math.Round(aa,2) + " " + Math.Round(ea,2);
 		if (this.AimBlock.CustomName.Contains("[Arm]")) ea += Math.PI * 0.5;
 
@@ -1412,10 +1408,10 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 			var a = (float)(-aa*this.RotorXField[i]) - this.RotorXs[i].Angle;
 			if (a > Math.PI) a = a - MathHelper.TwoPi;
 			if (a < -Math.PI) a = a + MathHelper.TwoPi;
-			this.debugInfoInter+=$"\nazierror:{a}";
+			if (t % frameInterval == this.refreshFrame) this.debugInfoInter+=$"\nazierror:{a}";
 			//debugInfo+=$"\nazir: {(float)tvToRcNml.X * tvnToRpm}";
 			this.RotorXs[i].TargetVelocityRPM = (float)pidXL[i].Filter(a,2, this.RotorXs[i].TargetVelocityRPM) + (float)tvToRcNml.X * tvnToRpm * 0.225F;
-			this.debugInfoInter += "\n" + this.RotorXs[i].TargetVelocityRPM;
+			if (t % frameInterval == this.refreshFrame) this.debugInfoInter += "\n" + this.RotorXs[i].TargetVelocityRPM;
 		}
 			for(int i = 0; i < this.RotorYs.Count; i ++){
 				//this.RotorYs[i].TargetVelocityRPM = (float)(PitchValue * this.RotorYField[i] * RotorMaxSpeed);
@@ -1915,8 +1911,9 @@ return av;
 
 static IMyProgrammableBlock fcsComputer = null;
 static List<Target> GetFcsTargetList() {
-debugInfo+="\nstartfcs";
+debugInfo+="\nstartfcs" + t;
 List<Target> ret = new List<Target>();
+debugInfo += "\nfcsHave: " + (fcsComputer != null);
 if (fcsComputer == null) return ret;
 		if(fcsComputer.CustomData.Split('\n').Length >= 1){
 CustomConfiguration cfgTarget = new CustomConfiguration(fcsComputer);
