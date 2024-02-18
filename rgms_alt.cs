@@ -62,7 +62,7 @@ static long AUTO_FIRE_INTERVAL = 600;
 static long AUTO_FIRE_MAX = 4;
 
 static int launchMode = 0;
-static Dictionary<long, RadarTarget> radarTargets;
+static Dictionary<long, RadarTarget> radarTargets = new Dictionary<long, RadarTarget>();
 static HashSet<long> firedThreatenIds = new HashSet<long>();
 
 IMyTerminalBlock pgtimer = null;
@@ -126,6 +126,7 @@ class RadarTarget
     public bool isHighThreaten;
     public Vector3D position;
     public Vector3D velocity;
+    public long lastT;
 }
 class MISSILE
 {
@@ -286,6 +287,7 @@ List<Refueler> refuelerList = new List<Refueler>();
 
 //Initialiser
 #region Setup Stages
+long t = 0;
 Program()
             {
     //Sets Runtime
@@ -389,6 +391,8 @@ Program()
     if(tList.Any()) { 
         aimBlock = tList.First();
     }
+
+    t++;
 }
 #endregion
 
@@ -572,7 +576,7 @@ void Main(string argument)
 
     }
 
-    bool haveRadar = checkRadarTarget(out radarTargets);
+    bool haveRadar = checkRadarTarget();
 
     //Runs Guidance Block (foreach missile)
     //---------------------------------------
@@ -596,12 +600,12 @@ void Main(string argument)
             bool haveTarget = radarTargets.TryGetValue(ThisMissile.targetId, out radarTarget);
             if (haveTarget || !ThisMissile.IS_CLEAR)
             {
-                STD_GUIDANCE(ThisMissile, ThisMissile.IS_CLEAR, radarTarget.position, radarTarget.velocity, true);
+                STD_GUIDANCE(ThisMissile, ThisMissile.IS_CLEAR, radarTarget.position + (radarTarget.velocity * (t - radarTarget.lastT) * (1.0 / 60)), radarTarget.velocity, true);
             }
             else
             {
-                foreach (var item in ThisMissile.WARHEADS) { (item as IMyWarhead).IsArmed = true; }
-                foreach (var item in ThisMissile.WARHEADS) { (item as IMyWarhead).Detonate(); }
+                // foreach (var item in ThisMissile.WARHEADS) { (item as IMyWarhead).IsArmed = true; }
+                // foreach (var item in ThisMissile.WARHEADS) { (item as IMyWarhead).Detonate(); }
                 ThisMissile.markRemove = true;
             }
         }
@@ -646,19 +650,31 @@ void Main(string argument)
     Echo(debugInfo);
 }
 
-bool checkRadarTarget(out Dictionary<long, RadarTarget> radarTargets)
+long kradarLastUpdate = 0;
+bool checkRadarTarget()
 {
-    radarTargets = new Dictionary<long, RadarTarget>();
+    // radarTargets = new Dictionary<long, RadarTarget>();
     if (radarSurface == null) return false;
     string text = radarSurface.GetText();
     if (text == null || text.Length == 0) return false;
     string[] lines = text.Split('\n');
+    bool isFl = true;
+    long newKradarLastUpdate = 0;
     foreach (var l in lines)
     {
         if (l == null || l.Length == 0) continue;
+        if (isFl) {
+            long.TryParse(l, out newKradarLastUpdate);
+            if (kradarLastUpdate == newKradarLastUpdate) break;
+            kradarLastUpdate = newKradarLastUpdate;
+            radarTargets.Clear();
+            isFl = false;
+            continue;
+        }
         string[] fields = l.Split(':');
         if (fields.Count() < 9) continue;
         RadarTarget radarTarget = new RadarTarget();
+        radarTarget.lastT = t;
         double x, y, z, vx, vy, vz;
         bool allRead = true;
         allRead &= long.TryParse(fields[0], out radarTarget.id);
@@ -825,26 +841,26 @@ public IEnumerable<bool> MissileLaunchHandler()
             //if (!debugMode) thruster.ThrustOverridePercentage = 1;
         }
 
-        // var POWER_A = ThisMissile.POWER;
+        var POWER_A = ThisMissile.POWER;
 
         // yield return true;
 
-        // if (ThisMissile.POWER != null && ThisMissile.POWER is IMyBatteryBlock)
-        // {
-        //     POWER_A.ApplyAction("OnOff_Off");
-        //     //POWER_A.SetValue("Recharge", false);
-        //     //POWER_A.SetValue("Discharge", true);
-        //     ThisMissile.MissileMass += POWER_A.Mass;
-        // }
-        // yield return true;
+        if (ThisMissile.POWER != null && ThisMissile.POWER is IMyBatteryBlock)
+        {
+            //POWER_A.ApplyAction("OnOff_Off");
+            //POWER_A.SetValue("Recharge", false);
+            //POWER_A.SetValue("Discharge", true);
+            ThisMissile.MissileMass += POWER_A.Mass;
+        }
+        //yield return true;
 
-        // if (ThisMissile.POWER != null && ThisMissile.POWER is IMyBatteryBlock)
-        // {
-        //     POWER_A.ApplyAction("OnOff_On");
-        //     //POWER_A.SetValue("Recharge", false);
-        //     //POWER_A.SetValue("Discharge", true);
-        //     //ThisMissile.MissileMass += POWER_A.Mass;
-        // }
+        if (ThisMissile.POWER != null && ThisMissile.POWER is IMyBatteryBlock)
+        {
+            //POWER_A.ApplyAction("OnOff_On");
+            //POWER_A.SetValue("Recharge", false);
+            //POWER_A.SetValue("Discharge", true);
+            //ThisMissile.MissileMass += POWER_A.Mass;
+        }
 
         // 
         //for (int i = 0; i < 5; i++) yield return true;
@@ -1446,17 +1462,18 @@ bool INIT_NEXT_MISSILE()
             }
             else if (launchMode == 1)
             {
-                var sts = radarTargets.Values.Where(x => x.isHighThreaten && !(firedThreatenIds.Contains(x.id)));
+                // var sts = radarTargets.Values.Where(x => x.isHighThreaten && !(firedThreatenIds.Contains(x.id)));
+                var sts = radarTargets.Values.Where(x => !(firedThreatenIds.Contains(x.id)));
                 if (sts.Any())
                 {
                     NEW_MISSILE.targetId = sts.First().id;
                     firedThreatenIds.Add(NEW_MISSILE.targetId);
                     radarReady = true;
                 }
-                else
-                {
-                    break;
-                }
+                // else
+                // {
+                //     break;
+                // }
             }
         }
 
