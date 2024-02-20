@@ -507,6 +507,10 @@ void callDcsSendEnemy()
     debug("el: " + String.Join(" ", enemyList.Select(e => e.Value.priority + "")));
     enemyList.Sort((l, r) => {
         if (l.Value.priority != r.Value.priority) return l.Value.priority - r.Value.priority;
+        else if (l.Value is KRadarTargetData && r.Value is KRadarTargetData && ((KRadarTargetData)l.Value).isSelected != ((KRadarTargetData)r.Value).isSelected) {
+            if (((KRadarTargetData)l.Value).isSelected) return -1;
+            else return 1;
+        }
         else return 
         (int)((MePosition - r.Value.estPosition()).Length() -
         (MePosition - l.Value.estPosition()).Length());

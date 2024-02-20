@@ -515,6 +515,7 @@ namespace kradar_p
     Vector3D moveInput = Vector3D.Zero;
     Vector3D moveInputDam = Vector3D.Zero;
     bool shipDam = true;
+    bool autoForward = false;
     void parseInput()
     {
       if (mainShipCtrl == null) return;
@@ -1104,7 +1105,8 @@ namespace kradar_p
         {
           t.ThrustOverridePercentage = 0;
         }
-        shipThrusts[0][T_FRONT].ForEach(t => t.ThrustOverridePercentage = 0);
+        if (autoForward) shipThrusts[0][T_FRONT].ForEach(t => t.ThrustOverridePercentage = 1);
+        else shipThrusts[0][T_FRONT].ForEach(t => t.ThrustOverridePercentage = 0);
         if (moveInput.Z <= 0 && !isAcc) {
           shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = false;t.ThrustOverridePercentage = 0;});
         } else {
@@ -1236,6 +1238,9 @@ namespace kradar_p
             break;
           case "SUSPEND":
             suspendStart = tickGet();
+            break;
+          case "FORWARD":
+            autoForward = !autoForward;
             break;
         }
         return;
