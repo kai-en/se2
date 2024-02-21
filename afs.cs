@@ -289,16 +289,17 @@ namespace kradar_p
         var a = (float)(-aa) - this.ra.Angle;
         if (a > Math.PI) a -= MathHelper.TwoPi;
         if (a < -Math.PI) a += MathHelper.TwoPi;
-        var RPMRatio = 20.0F;
+        var RPMRatio = 50.0F;
         debug += a * RPMRatio + "\n";
-        
-			  this.ra.TargetVelocityRPM = a * RPMRatio + (float)tvToRcNml.X * tvnToRpm * 0.225F;
+        // float TV_RPM_RATIO = 0.225F;
+        float TV_RPM_RATIO = 0.6F;
+			  this.ra.TargetVelocityRPM = a * RPMRatio - (float)tvToRcNml.X * tvnToRpm * TV_RPM_RATIO;
 
         var e = (float)(ea) - this.re.Angle;
         if (e > Math.PI) e -= MathHelper.TwoPi;
         if (e < -Math.PI) e += MathHelper.TwoPi;
         debug += e * RPMRatio + "\n";
-        this.re.TargetVelocityRPM = e * RPMRatio + (float)tvToRcNml.Y * tvnToRpm * 0.225F;
+        this.re.TargetVelocityRPM = e * RPMRatio + (float)tvToRcNml.Y * tvnToRpm * TV_RPM_RATIO;
 
         return debug;
 		  }
