@@ -52,6 +52,10 @@ namespace kradar_p
       decideMode();
       debug("standby: " + isStandBy);
       debug("ab: " + autoBalance + " ad: " + autoDown + " acc: " + isAcc + " af: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx);
+
+      // cam aim (optional)
+      debug(camGroup.Aim(mainTarget, tickGet(), shipVel));
+
       if (!isStandBy && !docked)
       {
         // follow position
@@ -149,6 +153,7 @@ namespace kradar_p
     double shipMass = 0;
     void checkShip()
     {
+      camGroup.SetGridTerminalSystem(GridTerminalSystem);
       getBlocks();
       if (shipThrusts.Count == 0) return;
 
@@ -209,6 +214,141 @@ namespace kradar_p
     IMyOffensiveCombatBlock aiOffensive; // TODO how to get hitpoint?
     List<IMyTurretControlBlock> tuBlocks = new List<IMyTurretControlBlock>();
 
+    CamGroup camGroup = new CamGroup();
+    class CamGroup {
+      IMyMotorStator ra = null;
+      IMyMotorStator re = null;
+      IMyRemoteControl rc = null;
+      IMyCameraBlock rca = null;
+      public Vector3D searchStableDir = Vector3D.Zero;
+      public Vector3D aimStableOffset = Vector3D.Zero;
+      bool lastUnderControl = false;
+
+      static float tvnToRpm = (float)(1.0 / Math.Sin(1.0 / 60));
+
+      public IMyGridTerminalSystem GridTerminalSystem { get; private set; }
+
+      public bool Have() {
+        return rc != null;
+      }
+
+      public string Aim(MainTarget mainTarget, long t, Vector3D shipVel) {
+        string debug = "";
+        debug += "rc have: " + (rc != null) + "\n";
+        if (rc == null) return debug;
+        if (this.rc!=null && lastUnderControl != this.rc.IsUnderControl) { 
+          if(this.rc.IsUnderControl) { 
+            // reset searchStableDir
+            searchStableDir = this.rca.WorldMatrix.Forward;
+          } else { 
+            aimStableOffset = Vector3D.Zero;
+          }
+          lastUnderControl = this.rc.IsUnderControl;
+        }
+
+        if(this.rc != null && this.rc.IsUnderControl){
+          Vector2 MouseInput = this.rc.RotationIndicator;
+          if(MouseInput.Length() != 0) { 
+            Vector3D need = this.rca.WorldMatrix.Right * MouseInput.X + this.rca.WorldMatrix.Up * MouseInput.Y;
+            var lM = MatrixD.CreateFromDir(this.rca.WorldMatrix.Forward, Vector3D.Normalize(need));
+            var axis = lM.Down; //Right wrong
+            float ROTATE_RATIO = 0.001F;
+            if (mainTarget.lost(t)) {
+              searchStableDir = Vector3D.Transform(searchStableDir, Quaternion.CreateFromAxisAngle(axis, (float)MouseInput.Length()*ROTATE_RATIO));
+            } else {
+              aimStableOffset += MouseInput.Y * this.rca.WorldMatrix.Right * 0.05;
+              aimStableOffset += -MouseInput.X * this.rca.WorldMatrix.Up * 0.05;
+            }
+          }
+        }
+
+        MatrixD refLookAtMatrix = MatrixD.CreateLookAt(new Vector3D(), this.rca.WorldMatrix.Forward, this.rca.WorldMatrix.Up);
+        Vector3D tp;
+        Vector3D tvToRcNml;
+        var rcLookAt = MatrixD.CreateLookAt(Vector3D.Zero, this.ra.WorldMatrix.Forward, this.ra.WorldMatrix.Up);
+
+        if (mainTarget.lost(t)) {
+          tp = searchStableDir * 100000;
+          tvToRcNml = Vector3D.Zero;
+        } else {
+          tp = mainTarget.estPosition(t) - this.ra.GetPosition() + aimStableOffset;
+          tvToRcNml = Vector3D.TransformNormal(mainTarget.velocity - shipVel, rcLookAt) / tp.Length();
+        }
+        debug += "have main target: " + (!mainTarget.lost(t)) + "\n";
+        // debug += "mt pos " + mainTarget.estPosition(t).X + "\n";
+        // debug += tp.Length() + "\n";
+
+        double aa=0, ea=0;
+        
+		    var tpToRc = Vector3D.TransformNormal(tp, rcLookAt);
+        var tpToRcNml = Vector3D.Normalize(tpToRc);
+        debug += "tptorc: " + tpToRcNml.X + "\n" + tpToRcNml.Y + "\n" + tpToRcNml.Z + "\n";
+		    Vector3D.GetAzimuthAndElevation(tpToRcNml, out aa, out ea);
+        debug += "aaea: " + aa + "\n" + ea + "\n";
+
+        var a = (float)(-aa) - this.ra.Angle;
+        if (a > Math.PI) a -= MathHelper.TwoPi;
+        if (a < -Math.PI) a += MathHelper.TwoPi;
+        var RPMRatio = 20.0F;
+        debug += a * RPMRatio + "\n";
+        
+			  this.ra.TargetVelocityRPM = a * RPMRatio + (float)tvToRcNml.X * tvnToRpm * 0.225F;
+
+        var e = (float)(ea) - this.re.Angle;
+        if (e > Math.PI) e -= MathHelper.TwoPi;
+        if (e < -Math.PI) e += MathHelper.TwoPi;
+        debug += e * RPMRatio + "\n";
+        this.re.TargetVelocityRPM = e * RPMRatio + (float)tvToRcNml.Y * tvnToRpm * 0.225F;
+
+        return debug;
+		  }
+
+      public string TryGet() {
+        string debug = "";
+        List<IMyBlockGroup> blockGroups = new List<IMyBlockGroup>();
+        GridTerminalSystem.GetBlockGroups(blockGroups, bg => bg.Name.Contains("cam"));
+        if (!blockGroups.Any()) return debug;
+        debug += "get group";
+        List<IMyTerminalBlock> blocks = new List<IMyTerminalBlock>();
+        
+        // blockGroups[0].GetBlocks(blocks);
+        // blocks.ForEach(b => debug += b.GetType());
+        // blocks.Clear();
+
+        blockGroups[0].GetBlocksOfType<IMyMotorStator>(blocks, b => !b.CustomName.Contains("Hinge"));
+        if (!blocks.Any()) return debug;
+        debug += "get rotor";
+        ra = (IMyMotorStator)blocks[0];
+        blocks.Clear();
+        blockGroups[0].GetBlocksOfType<IMyMotorStator>(blocks, b => b.CustomName.Contains("Hinge"));
+        if (!blocks.Any()) return debug;
+        debug += "get hinge";
+        re = (IMyMotorStator)blocks[0];
+        blocks.Clear();
+        blockGroups[0].GetBlocksOfType<IMyCameraBlock>(blocks);
+        if (!blocks.Any()) return debug;
+        debug += "get cam";
+        rca = (IMyCameraBlock)blocks[0];
+        blocks.Clear();
+        blockGroups[0].GetBlocksOfType<IMyRemoteControl>(blocks);
+        if (!blocks.Any()) return debug;
+        debug += "get rc";
+        rc = (IMyRemoteControl)blocks[0];
+        searchStableDir = rc.WorldMatrix.Forward;
+        blocks.Clear();
+        return debug;
+      }
+
+      public void ClearAimOffset() {
+        aimStableOffset = Vector3D.Zero;
+      }
+
+      internal void SetGridTerminalSystem(IMyGridTerminalSystem gridTerminalSystem)
+      {
+          this.GridTerminalSystem = gridTerminalSystem;
+      }
+    }
+
     const string IGNORE_TAG = "#A#";
     void getBlocks()
     {
@@ -259,6 +399,12 @@ namespace kradar_p
       if (cleanAll && !connected) {
         tuBlocks.Clear();
         GridTerminalSystem.GetBlocksOfType<IMyTurretControlBlock>(tuBlocks, b => !((IMyTerminalBlock)b).CustomName.Contains(IGNORE_TAG));
+      }
+
+      if (cleanAll && !camGroup.Have()) {
+        // debugStaticClear();
+        // debugStatic(camGroup.TryGet());
+        camGroup.TryGet();
       }
     }
     void getGyros()
@@ -1221,6 +1367,10 @@ namespace kradar_p
       public long lastTime;
       public Vector3D estPosition(long t) { 
         return this.position + (1D/60)*(t-this.lastTime)*this.velocity;
+      }
+
+      public bool lost(long t) {
+        return position.X == 0 || t - lastTime > 180;
       }
     }
     MainTarget mainTarget = new MainTarget();

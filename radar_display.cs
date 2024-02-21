@@ -76,6 +76,7 @@ const string INI_SLAVE_CODE = "Slave code";
 const string INI_START_WHEN_COMPILED = "Start when compiled";
 const string INI_KRADAR_PANEL_NAME = "KRadar panel name";
 const string INI_AIM_MARK_NAME = "Aim mark name";
+const string INI_ALERT_RANGE = "Alert range";
 
 const string INI_NETWORK = "Share targets";
 const string INI_USE_RANGE_OVERRIDE = "Use radar range override";
@@ -1337,6 +1338,7 @@ void WriteCustomDataIni()
 
     generalIni.Set(INI_SECTION_GENERAL, INI_KRADAR_PANEL_NAME, KRADAR_PANEL_NAME);
     generalIni.Set(INI_SECTION_GENERAL, INI_AIM_MARK_NAME, AIM_MARK_NAME);
+    generalIni.Set(INI_SECTION_GENERAL, INI_ALERT_RANGE, ALERT_RANGE);
 
     MyIniHelper.SetColorChar(INI_SECTION_COLORS, INI_TEXT, textColor, generalIni);
     MyIniHelper.SetColorChar(INI_SECTION_COLORS, INI_BACKGROUND, backColor, generalIni);
@@ -1369,6 +1371,7 @@ void ParseCustomDataIni()
     Echo("startWhenCompiled " + startWhenCompiled);
     KRADAR_PANEL_NAME = generalIni.Get(INI_SECTION_GENERAL, INI_KRADAR_PANEL_NAME).ToString(KRADAR_PANEL_NAME);
     AIM_MARK_NAME = generalIni.Get(INI_SECTION_GENERAL, INI_AIM_MARK_NAME).ToString(AIM_MARK_NAME);
+    double.TryParse(generalIni.Get(INI_SECTION_GENERAL, INI_ALERT_RANGE).ToString(ALERT_RANGE+""), out ALERT_RANGE);
 
     textColor = MyIniHelper.GetColorChar(INI_SECTION_COLORS, INI_TEXT, generalIni, textColor);
     backColor = MyIniHelper.GetColorChar(INI_SECTION_COLORS, INI_BACKGROUND, generalIni, backColor);
