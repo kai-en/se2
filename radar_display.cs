@@ -185,7 +185,7 @@ RadarSurface radarSurface;
 readonly MyIni generalIni = new MyIni();
 readonly MyIni textSurfaceIni = new MyIni();
 
-string droneRadarName = "radardrone";
+string droneRadarName = "radar drone";
 IEnumerator<bool> LaunchStateMachine;
 
 double ALERT_RANGE = 2000;
@@ -222,7 +222,7 @@ public IEnumerable<bool> DroneLaunchHandler()
     if (droneRadarList.Count == 0) yield return false;
     List<IMyShipMergeBlock> mergeList = getBlockListByName<IMyShipMergeBlock>("Drone", false, false);
     if (mergeList.Count == 0) yield return false;
-    List<IMyProgrammableBlock> droneDcsList = getBlockListByName<IMyProgrammableBlock>("dcsdrone", false, false);
+    List<IMyProgrammableBlock> droneDcsList = getBlockListByName<IMyProgrammableBlock>("afs drone", false, false);
     if (droneRadarList.Count == 0) yield return false;
     if (droneDcsList.Count == 0) yield return false;
 
@@ -234,6 +234,8 @@ public IEnumerable<bool> DroneLaunchHandler()
     yield return true;
     yield return true;
     PlayAction((IMyTerminalBlock)droneRadar, "Run", "TurnOn");
+    for (int i = 0; i < 60; i++) yield return true;
+    PlayAction((IMyTerminalBlock)droneDcsList[0], "Run", "RADAR:STANDBYOFF");
     for (int i = 0; i < 60; i++) yield return true;
     PlayAction((IMyTerminalBlock)droneDcsList[0], "Run", "RADAR:FLYBYON");
 }
