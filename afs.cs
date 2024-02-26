@@ -151,6 +151,8 @@ namespace kradar_p
     Vector3D pGravityLocal = Vector3D.Zero;
     double shipMaxForce = 0;
     double shipMass = 0;
+    bool isWeaponCore = false;
+    WcPbApi wcPbApi = new WcPbApi();
     void checkShip()
     {
       camGroup.SetGridTerminalSystem(GridTerminalSystem);
@@ -407,6 +409,28 @@ namespace kradar_p
         // debugStatic(camGroup.TryGet());
         camGroup.TryGet();
       }
+
+      if (cleanAll && !isWeaponCore) {
+        try {
+          wcPbApi.Activate(Me);
+          isWeaponCore = true;
+        } catch {
+
+        }
+      }
+
+      if (pidGY == null) {
+        double p, i, d;
+        string str = CfgGet("AIM_PID_P", "2");
+        double.TryParse(str, out p);
+        str = CfgGet("AIM_PID_I", "1");
+        double.TryParse(str, out i);
+        str = CfgGet("AIM_PID_D", "0");
+        double.TryParse(str, out d);
+        pidGY = new PIDController(p,i,d,1F,-1F,60);
+        pidGP = new PIDController(p,i,d,1F,-1F,60);
+        pidGR = new PIDController(p,i,d,1F,-1F,60);
+      }
     }
     void getGyros()
     {
@@ -516,31 +540,35 @@ namespace kradar_p
       return r * r * r * (60 / (gyroDZ * gyroDZ));
     }
     bool gyroAntiDithering = false;
-    void SetGyroYaw(double yawRate)
+    PIDController pidGY, pidGP, pidGR;
+    void SetGyroYaw(double yawRate, bool aim = false)
     {
       yawRate -= shipAV.Y * -0.1;
       if (gyroAntiDithering && Math.Abs(yawRate) < gyroDZ) yawRate = rateAdjust(yawRate);
       else yawRate *= 60;
+      if (aim && pidGY != null) yawRate = pidGY.Filter(yawRate, 3);
       for (int i = 0; i < shipGyros.Count; i++)
       {
         shipGyros[i].SetValue(gyroFields[i][G_YAW], (float)yawRate * gyroFactors[i][G_YAW]);
       }
     }
 
-    void SetGyroPitch(double pitchRate)
+    void SetGyroPitch(double pitchRate, bool aim = false)
     {
       if (gyroAntiDithering && Math.Abs(pitchRate) < gyroDZ) pitchRate = rateAdjust(pitchRate);
       else pitchRate *= 60;
+      if (aim && pidGP != null) pitchRate = pidGP.Filter(pitchRate, 3);
       for (int i = 0; i < shipGyros.Count; i++)
       {
         shipGyros[i].SetValue(gyroFields[i][G_PITCH], (float)pitchRate * gyroFactors[i][G_PITCH]);
       }
     }
 
-    void SetGyroRoll(double rollRate)
+    void SetGyroRoll(double rollRate, bool aim = false)
     {
       if (gyroAntiDithering && Math.Abs(rollRate) < gyroDZ) rollRate = rateAdjust(rollRate);
       else rollRate *= 60;
+      if (aim && pidGR != null) rollRate = pidGR.Filter(rollRate, 3);
       for (int i = 0; i < shipGyros.Count; i++)
       {
         shipGyros[i].SetValue(gyroFields[i][G_ROLL], (float)rollRate * gyroFactors[i][G_ROLL]);
@@ -918,6 +946,11 @@ namespace kradar_p
           aimStart = 0;
         }
       }
+
+      if (autoFollow && haveTarget) {
+        haveTarget = (shipPosition - motherPosition).Length() < fpList[0].Length() * 2;
+      }
+      
       String aostr = cfg.Get(CFG_GENERAL, "AIM_OFFSET").ToString();
       if (aostr == "") {
         aostr = "0.5";
@@ -979,13 +1012,19 @@ namespace kradar_p
         Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
         Vector3D tarN = Vector3D.Normalize(HitPoint - shipPosition);
 		    tarN = Vector3D.Transform(tarN, shipRevertMat);
-        SetGyroYaw( modAngle(Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
+        SetGyroYaw( modAngle(Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE, true);
         needRYP[1] = true;
-        SetGyroPitch(modAngle(Math.Atan2(tarN.Z, tarN.Y) + Math.PI * 0.5) * 0.6 * GYRO_RATE);
+        SetGyroPitch(modAngle(Math.Atan2(tarN.Z, tarN.Y) + Math.PI * 0.5) * 0.6 * GYRO_RATE, true);
         needRYP[2] = true;
         
         // fire
-        if ((tarN.Z < -AIM_LIMIT) && (tickGet() > (aimStart + AIM_DELAY * 60))) shipWeapons.ForEach(w => w.ShootOnce());
+        if ((tarN.Z < -AIM_LIMIT) && (tickGet() > (aimStart + AIM_DELAY * 60))) {
+          if (isWeaponCore) {
+            shipWeapons.ForEach(w => wcPbApi.FireWeaponOnce(w));
+          } else {
+            shipWeapons.ForEach(w => w.ShootOnce());
+          }
+        }
       }
 
       if (needBalance)
@@ -1931,6 +1970,110 @@ namespace kradar_p
       return av;
     }
     #endregion aim
+
+    #region wc
+    public class WcPbApi
+    {
+        private Action<IMyTerminalBlock, bool, int> _fireWeaponOnce;
+        /// <summary>Initializes the API.</summary>
+        /// <exception cref="Exception">If the WcPbAPI property added by WeaponCore couldn't be found on the block.</exception>
+        public bool Activate(IMyTerminalBlock pbBlock)
+        {
+            var dict = pbBlock.GetProperty("WcPbAPI")?.As<IReadOnlyDictionary<string, Delegate>>().GetValue(pbBlock);
+            if (dict == null) throw new Exception($"WcPbAPI failed to activate");
+            return ApiAssign(dict);
+        }
+
+        /// <summary>Assigns WeaponCore's API methods to callable properties.</summary>
+        public bool ApiAssign(IReadOnlyDictionary<string, Delegate> delegates)
+        {
+            if (delegates == null)
+                return false;
+            AssignMethod(delegates, "FireWeaponOnce", ref _fireWeaponOnce);
+            return true;
+        }
+
+        /// <summary>Assigns a delegate method to a property.</summary>
+        private void AssignMethod<T>(IReadOnlyDictionary<string, Delegate> delegates, string name, ref T field) where T : class
+        {
+            if (delegates == null) {
+                field = null;
+                return;
+            }
+            Delegate del;
+            if (!delegates.TryGetValue(name, out del))
+                throw new Exception($"{GetType().Name} :: Couldn't find {name} delegate of type {typeof(T)}");
+            field = del as T;
+            if (field == null)
+                throw new Exception(
+                    $"{GetType().Name} :: Delegate {name} is not type {typeof(T)}, instead it's: {del.GetType()}");
+        }
+
+        /// <summary>Fires the given weapon once. Optionally shoots a specific barrel of the weapon. Might be bugged atm.</summary>
+        public void FireWeaponOnce(IMyTerminalBlock weapon, bool allWeapons = true, int weaponId = 0) =>
+            _fireWeaponOnce?.Invoke(weapon, allWeapons, weaponId);
+
+    }
+    #endregion wc
+
+    #region pid
+public class PIDController
+{
+public static double DEF_SMALL_GRID_P = 31.42;
+public static double DEF_SMALL_GRID_I = 0;
+public static double DEF_SMALL_GRID_D = 10.48;
+
+public static double DEF_BIG_GRID_P = 15.71;
+public static double DEF_BIG_GRID_I = 0;
+public static double DEF_BIG_GRID_D = 7.05;
+
+double integral;
+double lastInput;
+
+double gain_p;
+double gain_i;
+double gain_d;
+double upperLimit_i;
+double lowerLimit_i;
+double second;
+
+public PIDController(double pGain, double iGain, double dGain, double iUpperLimit = 0, double iLowerLimit = 0, float stepsPerSecond = 60f)
+{
+gain_p = pGain;
+gain_i = iGain;
+gain_d = dGain;
+upperLimit_i = iUpperLimit;
+lowerLimit_i = iLowerLimit;
+second = stepsPerSecond;
+}
+
+public double Filter(double input, int r, double cu, double step = 0.1)
+{
+  var w = Filter(input, r);
+  return MathHelper.Clamp(w, cu - step, cu + step);
+}
+
+public double Filter(double input, int round_d_digits)
+{
+double roundedInput = Math.Round(input, round_d_digits);
+
+integral = integral + (input / second);
+integral = (upperLimit_i > 0 && integral > upperLimit_i ? upperLimit_i : integral);
+integral = (lowerLimit_i < 0 && integral < lowerLimit_i ? lowerLimit_i : integral);
+
+double derivative = (roundedInput - lastInput) * second;
+lastInput = roundedInput;
+
+return (gain_p * input) + (gain_i * integral) + (gain_d * derivative);
+}
+
+public void Reset()
+{
+integral = lastInput = 0;
+}
+}
+
+    #endregion pid
 
     #endregion ingamescript
 
