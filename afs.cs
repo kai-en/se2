@@ -10,6 +10,7 @@ using VRage.Game.ModAPI.Ingame;
 using VRageMath;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using SharpDX.XInput;
+using System.Numerics;
 
 namespace kradar_p
 {
@@ -430,6 +431,22 @@ namespace kradar_p
         pidGY = new PIDController(p,i,d,1F,-1F,60);
         pidGP = new PIDController(p,i,d,1F,-1F,60);
         pidGR = new PIDController(p,i,d,1F,-1F,60);
+      }
+
+      if (fpList.Count == 0)
+      {
+        string tmps = "";
+        tmps = cfg.Get(CFG_GENERAL, "followPositions").ToString("");
+        parseV3L(tmps, fpList);
+        if (fpList.Count == 0)
+        {
+          fpList.Add(new Vector3D(0, 10, 100));
+          fpList.Add(new Vector3D(0, 0, 50));
+          fpList.Add(new Vector3D(0, 0, 0));
+          cfg.Set(CFG_GENERAL, "followPositions", "0,10,100;0,0,50;0,0,0");
+          Me.CustomData = cfg.ToString();
+        }
+        fpIdx = fpList.Count - 1;
       }
     }
     void getGyros()
@@ -1482,6 +1499,15 @@ namespace kradar_p
           shipThrusts[0].ForEach(l => l.ForEach(t => t.Enabled = true));
           shipThrusts[1][0].ForEach(t => t.Enabled = true);
           break;
+        case "RESET_FP0":
+          if (args.Count() < 4) return;
+          double x,y,z;
+          double.TryParse(args[1], out x);
+          double.TryParse(args[2], out y);
+          double.TryParse(args[3], out z);
+          var newFp0 = new Vector3D(x, y, z);
+          fpList[0] = newFp0;
+          break;
       }
       if (isStandBy) return;
 
@@ -1710,22 +1736,6 @@ namespace kradar_p
     int fpIdx = 0;
     void followPosition()
     {
-      if (fpList.Count == 0)
-      {
-        string tmps = "";
-        tmps = cfg.Get(CFG_GENERAL, "followPositions").ToString("");
-        parseV3L(tmps, fpList);
-        if (fpList.Count == 0)
-        {
-          fpList.Add(new Vector3D(0, 10, 100));
-          fpList.Add(new Vector3D(0, 0, 50));
-          fpList.Add(new Vector3D(0, 0, 0));
-          cfg.Set(CFG_GENERAL, "followPositions", "0,10,100;0,0,50;0,0,0");
-          Me.CustomData = cfg.ToString();
-        }
-        fpIdx = fpList.Count - 1;
-      }
-
       if (!autoFollow) return;
       if (isDocking && fpIdx < fpList.Count - 1) {
         var diff = (shipPosition) - (motherPositionGet() + Vector3D.TransformNormal(fpList[fpIdx], motherMatrixD));
@@ -1965,7 +1975,7 @@ namespace kradar_p
       // 5 将avx avy avz 转回绝对座标系 并输出(注意本来这里应该输出碰撞点位置 , 但这里以发射速度代替, 所以还要加上本机位置, 调用者处理)
       avyp *= 0.98;
       Vector3D av2m = new Vector3D(avx, avyp, avz);
-      Vector3D av = Vector3.Transform(av2m, Matrix.Transpose(tranmt));
+      Vector3D av = Vector3D.Transform(av2m, Matrix.Transpose(tranmt));
       //debugString += "\nav: " + displayVector3D(av);
       return av;
     }

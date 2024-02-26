@@ -3,7 +3,9 @@ using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Intrinsics.Arm;
 using System.Text;
+using System.Text.RegularExpressions;
 using VRage;
 using VRage.Game;
 using VRage.Game.GUI.TextPanel;
@@ -216,6 +218,10 @@ void updateMotion()
     MePosition = msc.GetPosition();
 }
 
+string[] DP_DEF = new string[]{"LL", "RR", "LU", "RU", "LB", "RB"};
+int DP_idx = 0;
+int MAX_DP = 6;
+
 public IEnumerable<bool> DroneLaunchHandler()
 {
     List<IMyProgrammableBlock> droneRadarList = getBlockListByName<IMyProgrammableBlock>(droneRadarName, false, false);
@@ -238,6 +244,10 @@ public IEnumerable<bool> DroneLaunchHandler()
     PlayAction((IMyTerminalBlock)droneDcsList[0], "Run", "RADAR:STANDBYOFF");
     for (int i = 0; i < 60; i++) yield return true;
     PlayAction((IMyTerminalBlock)droneDcsList[0], "Run", "RADAR:FLYBYON");
+    yield return true;
+    PlayAction((IMyTerminalBlock)droneRadar, "Run", "SETUP_DRONE:" + DP_DEF[DP_idx]);
+    DP_idx ++;
+    if (DP_idx >= MAX_DP) DP_idx = 0;
 }
 
 void Main(string arg, UpdateType updateSource)
@@ -312,6 +322,17 @@ void Main(string arg, UpdateType updateSource)
         {
             LaunchStateMachine = DroneLaunchHandler().GetEnumerator();
         }
+    }
+    else if (arg.Contains("DRONE_SETUP:")) {
+        var paras = arg.Split(':')[1].Split(',');
+        var mc_suffix = paras[0];
+        if (MOTHER_CODE.Contains("[DP_")) {
+            var si = MOTHER_CODE.IndexOf("[DP_");
+            MOTHER_CODE = MOTHER_CODE.Substring(0, si) + "[DP_" + mc_suffix + "]";
+        } else {
+            MOTHER_CODE += " [DP_" + mc_suffix + "]";
+        }
+        WriteCustomDataIni();
     }
     else if (arg.Equals("PICK_NEAR"))
     {
