@@ -292,7 +292,7 @@ namespace kradar_p
         var RPMRatio = 50.0F;
         debug += a * RPMRatio + "\n";
         // float TV_RPM_RATIO = 0.225F;
-        float TV_RPM_RATIO = 0.6F;
+        float TV_RPM_RATIO = 0.5F;
 			  this.ra.TargetVelocityRPM = a * RPMRatio - (float)tvToRcNml.X * tvnToRpm * TV_RPM_RATIO;
 
         var e = (float)(ea) - this.re.Angle;
