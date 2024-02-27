@@ -3,6 +3,7 @@ using SpaceEngineers.Game.ModAPI.Ingame;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.Intrinsics.Arm;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -190,7 +191,7 @@ readonly MyIni textSurfaceIni = new MyIni();
 string droneRadarName = "radar drone";
 IEnumerator<bool> LaunchStateMachine;
 
-double ALERT_RANGE = 2000;
+double ALERT_RANGE = 5000;
 static long kradarLastUpdate = 0;
 
 //#endregion 
@@ -571,7 +572,7 @@ void callDcsSendEnemy()
 {
     //debugOnce = $"target {t} count {targetDataDict.Count}";
     List<KeyValuePair<long, TargetData>> enemyList = targetDataDict.Where(i => i.Value.Relation == TargetRelation.Enemy && (MePosition - i.Value.estPosition()).Length() < ALERT_RANGE).ToList();
-    debug("el: " + String.Join(" ", enemyList.Select(e => e.Value.priority + "")));
+    debug("el: " + String.Join(" ", enemyList.Select(e => "e" + e.Value.priority + "")));
     enemyList.Sort((l, r) => {
         if (l.Value.priority != r.Value.priority) return l.Value.priority - r.Value.priority;
         else if (l.Value is KRadarTargetData && r.Value is KRadarTargetData && ((KRadarTargetData)l.Value).isSelected != ((KRadarTargetData)r.Value).isSelected) {
@@ -581,9 +582,7 @@ void callDcsSendEnemy()
         else return 
         (int)((MePosition - r.Value.estPosition()).Length() -
         (MePosition - l.Value.estPosition()).Length());
-    }
-            
-    );
+    });
     string message = "";
     if (enemyList.Count > 0)
     {
@@ -687,7 +686,6 @@ void ProcessNetworkMessage()
         }
     }
 }
-
 void NetworkTargets()
 {
     if (broadcastIFF)
@@ -708,8 +706,10 @@ void NetworkTargets()
         { // use lider
             refWorldMatrix = fcsReference.WorldMatrix;
         }
+        var ktl = targetDataDict.Values.Where(x => x is KRadarTargetData && ((KRadarTargetData)x).isSelected);
+        var vel = reference.GetShipVelocities().LinearVelocity;
 
-        var myTuple = new MyTuple<byte, long, Vector3D, byte, string>((byte)TargetRelation.Friendly, Me.CubeGrid.EntityId, reference.GetPosition(), 0, encodeMessage(MOTHER_CODE, refWorldMatrix, reference.GetShipVelocities().LinearVelocity, (t % 50000 / 50000f) * MathHelper.TwoPi));
+        var myTuple = new MyTuple<byte, long, Vector3D, byte, string>((byte)TargetRelation.Friendly, Me.CubeGrid.EntityId, reference.GetPosition(), 0, encodeMessage(MOTHER_CODE, refWorldMatrix, vel, (t % 50000 / 50000f) * MathHelper.TwoPi));
         IGC.SendBroadcastMessage(IGC_TAG, myTuple);
     }
 

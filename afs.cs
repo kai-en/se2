@@ -52,7 +52,8 @@ namespace kradar_p
       // decide mode
       decideMode();
       debug("standby: " + isStandBy);
-      debug("ab: " + autoBalance + " ad: " + autoDown + " acc: " + isAcc + " af: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx);
+      debug("ab: " + autoBalance + " ad: " + autoDown + " acc: " + isAcc + "\naf: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx
+      + " at: " + attackMode);
 
       // cam aim (optional)
       debug(camGroup.Aim(mainTarget, tickGet(), shipVel));
@@ -726,6 +727,8 @@ namespace kradar_p
     long downStart = 0;
     bool autoDown = false;
     bool autoFollow = false;
+    bool attackMode = false;
+    long attackStart = 0;
     bool isDocking = false;
     bool needBalance = false;
     bool docked = false;
@@ -764,6 +767,7 @@ namespace kradar_p
         autoFollow = true;
         cmdFollow = false;
         isDocking = false;
+        attackMode = false;
         if(fpIdx == fpList.Count - 1) {
           if ((shipPosition - motherPosition).Length() > fpList[0].Length())
             fpIdx = 0;
@@ -782,6 +786,7 @@ namespace kradar_p
         autoFollow = true;
         cmdDock = false;
         isDocking = true;
+        attackMode = false;
         setDampenersOverride(mainShipCtrl, false);
       }
 
@@ -875,6 +880,7 @@ namespace kradar_p
 
     bool AIM_AUTO = false;
     long AIM_DELAY = 1;
+    bool fatnl = false;
 
     Vector3D noGraUp = Vector3D.Zero;
     Vector3D DeadZone(Vector3D i, double l) {
@@ -964,8 +970,18 @@ namespace kradar_p
         }
       }
 
-      if (autoFollow && haveTarget) {
+      if (autoFollow && haveTarget && !attackMode) {
         haveTarget = (shipPosition - motherPosition).Length() < fpList[0].Length() * 2;
+      }
+
+      if (autoFollow && haveTarget && attackMode && !mainTarget.lost(tickGet())) {
+        var tr = (shipPosition - mainTarget.estPosition(tickGet())).Length();
+        if (fatnl) {
+          if (tr > axisBr * 0.6) fatnl = false;
+        } else {
+          if (tr < 200) fatnl = true;
+        }
+        haveTarget = tr > (fatnl ? axisBr * 0.6 : 200);
       }
       
       String aostr = cfg.Get(CFG_GENERAL, "AIM_OFFSET").ToString();
@@ -1086,8 +1102,10 @@ namespace kradar_p
         double nv = naL1MainLocal.Z * -0.5;
         if (!haveTarget) {
           // yaw
-          var motherPoint = Vector3D.TransformNormal(followGetForward(), shipRevertMat);
-          var angle = Math.Atan2(motherPoint.Z, motherPoint.X);
+          var needPoint = followGetForward();
+          if (attackMode && !mainTarget.lost(tickGet())) needPoint = Vector3D.Normalize(mainTarget.estPosition(tickGet()) - shipPosition);
+          var nptm = Vector3D.TransformNormal(needPoint, shipRevertMat);
+          var angle = Math.Atan2(nptm.Z, nptm.X);
           angle = Math.PI * 0.5 + angle;
           // angle = utilMyClamp(angle, 0.2);
           SetGyroYaw(modAngle(angle) * 0.2 * GYRO_RATE);
@@ -1525,18 +1543,19 @@ namespace kradar_p
         // case ("LOADMISSILEON"):
         //     //TODO
         //     break;
-        // case "ATTACKON":
-        //     if (flyByOn)
-        //     {
-        //         attackMode = true;
-        //     }
-        //     break;
-        // case "ATTACKOFF":
-        //     if (flyByOn)
-        //     {
-        //         attackMode = false;
-        //     }
-        //     break;
+        case "ATTACKON":
+            if (autoFollow)
+            {
+                attackMode = true;
+                attackStart = tickGet();
+            }
+            break;
+        case "ATTACKOFF":
+            if (autoFollow)
+            {
+                attackMode = false;
+            }
+            break;
         // case "WEAPON1":
         //     callComputer(fighterFcs, "WEAPON1");
         //     break;
@@ -1598,15 +1617,31 @@ namespace kradar_p
       Vector3D na = Vector3D.Zero;
       if (autoFollow) {
         Vector3D pd = motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition;
-        Vector3D pdn = Vector3D.Normalize(pd);
+        Vector3D tv = motherVelocity;
+        debug("at");
+        debug("ml: " + mainTarget.lost(tickGet()));
+        if (attackMode && !mainTarget.lost(tickGet())) {
+          var agl = ((tickGet() - attackStart) % 20000) / 20000D * MathHelper.TwoPi;
+          Vector3D tmp = new Vector3D(0, 0, -1);
+          var rm = MatrixD.CreateRotationY(agl);
+          tmp = Vector3D.Rotate(tmp, rm);
+          MatrixD motherLookAtMatrix = MatrixD.CreateLookAt(new Vector3D(0, 0, 0), motherMatrixD.Forward, motherMatrixD.Up);
+          var newFo = Vector3D.TransformNormal(tmp, motherLookAtMatrix);
+
+          var rd = MatrixD.CreateFromDir(newFo, motherMatrixD.Up);
+          var fp = fpList[0];
+          fp = Vector3D.Normalize(fp) * (axisBr * 0.8);
+          pd = mainTarget.estPosition(tickGet()) + Vector3D.TransformNormal(fp, rd) - shipPosition;
+          tv = mainTarget.velocity;
+        }
         if (pd.Length() < 20) pd *= 0.23;
         else pd = Vector3D.Normalize(pd) * Math.Sqrt(pd.Length() - 10) * 1.5;
         if (pGravity.Length() < 0.01 && isDocking && fpIdx == fpList.Count - 1) {
           pd *= 0.2;
         }
-        Vector3D nv = motherVelocity + pd;
+        Vector3D nv = tv + pd;
         na = (nv - shipVelGet()) * 0.5;
-        if (pGravity.Length() < 0.01 && fpIdx == 0 && (shipVelGet() - motherVelocity).Length() < 0.1 && pd.Length() < 5) {
+        if (pGravity.Length() < 0.01 && fpIdx == 0 && (shipVelGet() - tv).Length() < 0.1 && pd.Length() < 5) {
           // stop dead zone
           na = Vector3D.Zero;
         }
@@ -1634,7 +1669,7 @@ namespace kradar_p
           range *= 0.8;
           var tpd = shipPosition - motherPosition;
           var tpdn = Vector3D.Normalize(tpd);
-          double av = Vector3D.Dot(motherVelocity - shipVelGet(), tpdn);
+          double av = Vector3D.Dot(tv - shipVelGet(), tpdn);
           if (av > 0) range += av * 5;
           if (tpd.Length() < range) {
             var al = MathHelper.Clamp(range - tpd.Length(), 0, 10) * 2.0;
