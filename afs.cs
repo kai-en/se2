@@ -865,6 +865,7 @@ namespace kradar_p
 
     double axisYOffset = 0;
     double axisBs = 0;
+    double axisMvr = 0;
     double axisGr = 0;
     double axisBr = 0;
     double axisCr = 0;
@@ -1025,6 +1026,11 @@ namespace kradar_p
         double.TryParse(str, out axisBs);
       }
 
+      if (axisMvr == 0) {
+        string str = CfgGet("WEAPON_BULLET_MVR", "1");
+        double.TryParse(str, out axisBs);
+      }
+
       if (axisGr == 0) {
         string str = CfgGet("WEAPON_GRAVITY_AFFECT", "0.75");
         double.TryParse(str, out axisGr);
@@ -1042,7 +1048,7 @@ namespace kradar_p
 
       if (haveTarget) {
         // aim 
-        Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr);
+        Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr, axisMvr);
         Vector3D tarN = Vector3D.Normalize(HitPoint - shipPosition);
 		    tarN = Vector3D.Transform(tarN, shipRevertMat);
         SetGyroYaw( modAngle(Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE, true);
@@ -1831,7 +1837,7 @@ namespace kradar_p
     #region aim
     static Vector3D HitPointCaculate(Vector3D Me_Position, Vector3D Me_Velocity, Vector3D Me_Acceleration, Vector3D Target_Position, Vector3D Target_Velocity, Vector3D Target_Acceleration,
               double Bullet_InitialSpeed, double Bullet_Acceleration, double Bullet_MaxSpeed,
-              float gravityRate, Vector3D ng, double bulletMaxRange, double curvationRate)
+              float gravityRate, Vector3D ng, double bulletMaxRange, double curvationRate, double mvrate = 1)
     {
       string debugString = "";
       //GravityHitPointCaculate(new Vector3D(1, 1, 0), new Vector3D(0,0,-1), new Vector3D(0,-1,0), 3D, out debugString);
@@ -1847,7 +1853,7 @@ namespace kradar_p
       //迭代算法   
       Vector3D HitPoint = new Vector3D();
       Vector3D Smt = Target_Position - Me_Position;//发射点指向目标的矢量   
-      Vector3D Velocity = Target_Velocity - Me_Velocity; //目标飞船和自己飞船总速度   
+      Vector3D Velocity = Target_Velocity - Me_Velocity*mvrate; //目标飞船和自己飞船总速度   
       Vector3D Acceleration = Target_Acceleration; //目标飞船和自己飞船总加速度   
 
       double AccTime = (Bullet_Acceleration == 0 ? 0 : (Bullet_MaxSpeed - Bullet_InitialSpeed) / Bullet_Acceleration);//子弹加速到最大速度所需时间   
