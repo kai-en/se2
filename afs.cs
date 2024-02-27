@@ -1028,7 +1028,7 @@ namespace kradar_p
 
       if (axisMvr == 0) {
         string str = CfgGet("WEAPON_BULLET_MVR", "1");
-        double.TryParse(str, out axisBs);
+        double.TryParse(str, out axisMvr);
       }
 
       if (axisGr == 0) {
