@@ -222,6 +222,40 @@ string[] DP_DEF = new string[]{"LL", "RR", "LU", "RU", "LB", "RB"};
 int DP_idx = 0;
 int MAX_DP = 6;
 
+static float toRadius(float i) {
+return (i / 180F) * (float)Math.PI;
+}
+public string getFp0(int idx) {
+    long r = 200;
+    long f = -50;
+    float a = toRadius(180);
+    switch(idx) {
+    case 0:
+        a = toRadius(180);
+    break;
+    case 1:
+        a = toRadius(0);
+    break;
+    case 2:
+        a = toRadius(135);
+    break;
+    case 3:
+        a = toRadius(45);
+    break;
+    case 4:
+        a = toRadius(-135);
+    break;
+    case 5:
+        a = toRadius(-45);
+    break;
+    }
+    string ret = "";
+    ret += (long)(r * Math.Cos(a)) + ",";
+    ret += (long)(r * Math.Sin(a)) + ",";
+    ret += f;
+    return ret;
+}
+
 public IEnumerable<bool> DroneLaunchHandler()
 {
     List<IMyProgrammableBlock> droneRadarList = getBlockListByName<IMyProgrammableBlock>(droneRadarName, false, false);
@@ -246,6 +280,8 @@ public IEnumerable<bool> DroneLaunchHandler()
     PlayAction((IMyTerminalBlock)droneDcsList[0], "Run", "RADAR:FLYBYON");
     yield return true;
     PlayAction((IMyTerminalBlock)droneRadar, "Run", "SETUP_DRONE:" + DP_DEF[DP_idx]);
+    yield return true;
+    PlayAction((IMyTerminalBlock)droneDcsList[0], "Run", "RADAR:RESET_FP0," + getFp0(DP_idx));
     DP_idx ++;
     if (DP_idx >= MAX_DP) DP_idx = 0;
 }
@@ -322,6 +358,13 @@ void Main(string arg, UpdateType updateSource)
         {
             LaunchStateMachine = DroneLaunchHandler().GetEnumerator();
         }
+    }
+    else if (arg.Contains("SET_DP_IDX:"))
+    {
+        var paras = arg.Split(':')[1].Split(',');
+        int nIdx = 0;
+        int.TryParse(paras[0], out nIdx);
+        DP_idx = nIdx;
     }
     else if (arg.Contains("DRONE_SETUP:")) {
         var paras = arg.Split(':')[1].Split(',');
