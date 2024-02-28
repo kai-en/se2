@@ -31,7 +31,8 @@ namespace kradar_p
       parseRadar(arguments);
 
       // if ((updateType != null) && ((updateType & UpdateType.Update1) == 0)) {
-      if (updateType == UpdateType.Update1) {
+      if (updateType != UpdateType.Update1) {
+        // after new game version, the program block will be only execute once every tick. means if it is called by other source, it will not execute by itself frequency
         // return;
       }
       

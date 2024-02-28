@@ -108,7 +108,7 @@ static string debugInfo = "";
 static string debugOnce = "";
 bool pauseDebug = false;
 string COCKPIT_NAME = "Reference";
-int t = 0;
+static int t = 0;
 MatrixD refLookAtMatrix = new MatrixD();
 bool motherSignalRotation = false;
 Vector3D MePosition = new Vector3D();
@@ -140,6 +140,7 @@ Color planeColor = new Color(100, 30, 0, 5);
 Color enemyIconColor = new Color(150, 100, 40, 255);
 Color enemyElevationColor = new Color(75, 50, 20, 255);
 Color enemyHighIconColor = new Color(150, 0, 0, 255);
+static Color enemyLockIconColor = new Color(250, 0, 0, 255);
 Color enemyHighElevationColor = new Color(75, 0, 0, 255);
 Color enemyDisableIconColor = new Color(100, 100, 100, 255);
 Color enemyDisableElevationColor = new Color(50, 50, 50, 255);
@@ -1321,7 +1322,7 @@ class RadarSurface
         elevationSprite.Position = screenCenter + (iconPos + targetPosPlane) * 0.5f;
 
         Vector2 iconSize = TGT_ICON_SIZE * scale;
-        MySprite iconSprite = new MySprite(SpriteType.TEXTURE, targetInfo.Icon, color: targetInfo.IconColor, size: iconSize);
+        MySprite iconSprite = new MySprite(SpriteType.TEXTURE, targetInfo.Icon, color: targetInfo.isSelected && (t / 5) % 2 == 0 ? enemyLockIconColor : targetInfo.IconColor, size: iconSize);
         iconSprite.Position = screenCenter + iconPos;
 
         iconSize.Y *= _radarProjectionCos;
