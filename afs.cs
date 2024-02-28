@@ -972,7 +972,8 @@ namespace kradar_p
       }
 
       if (autoFollow && haveTarget && !attackMode) {
-        haveTarget = (shipPosition - motherPosition).Length() < fpList[0].Length() * 2;
+        var mpl = (shipPosition - motherPosition).Length();
+        haveTarget = mpl < fpList[0].Length() * 2 && mpl > fpList[1].Length();
       }
 
       if (autoFollow && haveTarget && attackMode && !mainTarget.lost(tickGet())) {
@@ -1049,7 +1050,8 @@ namespace kradar_p
       if (haveTarget) {
         // aim 
         Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr, axisMvr);
-        Vector3D tarN = Vector3D.Normalize(HitPoint - shipPosition);
+        var tp = HitPoint - shipPosition;
+        Vector3D tarN = Vector3D.Normalize(tp);
 		    tarN = Vector3D.Transform(tarN, shipRevertMat);
         SetGyroYaw( modAngle(Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE, true);
         needRYP[1] = true;
@@ -1058,10 +1060,22 @@ namespace kradar_p
         
         // fire
         if ((tarN.Z < -AIM_LIMIT) && (tickGet() > (aimStart + AIM_DELAY * 60))) {
-          if (isWeaponCore) {
-            shipWeapons.ForEach(w => wcPbApi.FireWeaponOnce(w));
-          } else {
-            shipWeapons.ForEach(w => w.ShootOnce());
+          bool mil = false;
+          if (autoFollow) {
+            var mp = motherPosition - shipPosition;
+            var mpl = mp.Length();
+            if (mpl < tp.Length()) {
+              var mpn = Vector3D.Normalize(mp);
+              mpn = Vector3D.Transform(mpn, shipRevertMat);
+              if (mpn.Z < -0.99) mil = true;
+            }
+          }
+          if (!mil) {
+            if (isWeaponCore) {
+              shipWeapons.ForEach(w => wcPbApi.FireWeaponOnce(w));
+            } else {
+              shipWeapons.ForEach(w => w.ShootOnce());
+            }
           }
         }
       }

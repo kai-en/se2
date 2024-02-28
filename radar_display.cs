@@ -367,7 +367,7 @@ void Main(string arg, UpdateType updateSource)
         int.TryParse(paras[0], out nIdx);
         DP_idx = nIdx;
     }
-    else if (arg.Contains("DRONE_SETUP:")) {
+    else if (arg.Contains("SETUP_DRONE:")) {
         var paras = arg.Split(':')[1].Split(',');
         var mc_suffix = paras[0];
         if (MOTHER_CODE.Contains("[DP_")) {
