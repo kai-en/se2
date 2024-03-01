@@ -111,7 +111,7 @@ string COCKPIT_NAME = "Reference";
 static int t = 0;
 MatrixD refLookAtMatrix = new MatrixD();
 bool motherSignalRotation = false;
-Vector3D MePosition = new Vector3D();
+static Vector3D MePosition = new Vector3D();
 IMyShipController msc;
 bool inited = false;
 string SON_CODE = "2ndUsagi";
@@ -220,15 +220,29 @@ void updateMotion()
     MePosition = msc.GetPosition();
 }
 
-string[] DP_DEF = new string[]{"LL", "RR", "LU", "RU", "LB", "RB"};
-int DP_idx = 0;
+string[] DP_DEF = new string[]{"LL", "RR", "LU", "RU", "LB", "RB", "L0", "R0", "L1", "R1", "L2", "R2", "L3", "R3", "L4", "R4", };
 int MAX_DP = 6;
 
 static float toRadius(float i) {
 return (i / 180F) * (float)Math.PI;
 }
+
+public int getBlankDPIdx() {
+    for (int i = 0; i < MAX_DP; i++) {
+        string haveStr = "[DP_" + DP_DEF[i] + "]";
+        bool have = false;
+        foreach(var t in targetDataDict) {
+            if (t.Value.Code.Contains(haveStr) && t.Value.live()) {
+                have = true;
+                break;
+            }
+        }
+        if (!have) return i;
+    }
+    return 0;
+}
 public string getFp0(int idx) {
-    long r = 200;
+    long r = 200 + (idx >= 6 ? 200 : 0);
     long f = -50;
     float a = toRadius(180);
     switch(idx) {
@@ -250,6 +264,37 @@ public string getFp0(int idx) {
     case 5:
         a = toRadius(-45);
     break;
+    case 6:
+        a = toRadius(180);
+    break;
+    case 7:
+        a = toRadius(0);
+    break;
+    case 8:
+        a = toRadius(135);
+    break;
+    case 9:
+        a = toRadius(45);
+    break;
+    case 10:
+        a = toRadius(-135);
+    break;
+    case 11:
+        a = toRadius(-45);
+    break;
+    case 12:
+        a = toRadius(158);
+    break;
+    case 13:
+        a = toRadius(22);
+    break;
+    case 14:
+        a = toRadius(-158);
+    break;
+    case 15:
+        a = toRadius(-22);
+    break;
+
     }
     string ret = "";
     ret += (long)(r * Math.Cos(a)) + ",";
@@ -281,11 +326,10 @@ public IEnumerable<bool> DroneLaunchHandler()
     for (int i = 0; i < 60; i++) yield return true;
     PlayAction((IMyTerminalBlock)droneDcsList[0], "Run", "RADAR:FLYBYON");
     yield return true;
+    int DP_idx = getBlankDPIdx();
     PlayAction((IMyTerminalBlock)droneRadar, "Run", "SETUP_DRONE:" + DP_DEF[DP_idx]);
     yield return true;
     PlayAction((IMyTerminalBlock)droneDcsList[0], "Run", "RADAR:RESET_FP0," + getFp0(DP_idx));
-    DP_idx ++;
-    if (DP_idx >= MAX_DP) DP_idx = 0;
 }
 
 void Main(string arg, UpdateType updateSource)
@@ -360,13 +404,6 @@ void Main(string arg, UpdateType updateSource)
         {
             LaunchStateMachine = DroneLaunchHandler().GetEnumerator();
         }
-    }
-    else if (arg.Contains("SET_DP_IDX:"))
-    {
-        var paras = arg.Split(':')[1].Split(',');
-        int nIdx = 0;
-        int.TryParse(paras[0], out nIdx);
-        DP_idx = nIdx;
     }
     else if (arg.Contains("SETUP_DRONE:")) {
         var paras = arg.Split(':')[1].Split(',');
@@ -1045,6 +1082,11 @@ class TargetData
 
     public Vector3D estPosition() { 
         return this.Position + (1D/60)*(t-this.t)*this.Velocity;
+    }
+
+    public bool live() {
+        return t - this.t < 10 * 60
+          && (this.Position - MePosition).Length() < 2000;
     }
 }
 
