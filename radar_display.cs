@@ -12,6 +12,7 @@ using VRage.Game;
 using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRageMath;
+using VRageRender;
 namespace RadarDisplay { 
 public class Program:MyGridProgram { 
 #region In-game Script 
@@ -2464,7 +2465,10 @@ void parseFcsTarget()
 }
 
 void putTargetDict(long eid, TargetData tar) {
-    if (targetDataDict.ContainsKey(eid) && targetDataDict[eid].priority < tar.priority) return;
+    if (targetDataDict.ContainsKey(eid) && targetDataDict[eid].priority < tar.priority) {
+        targetDataDict[eid].t = t;
+        return;
+    }
     targetDataDict[eid] = tar;
 }
 

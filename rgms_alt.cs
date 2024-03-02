@@ -23,7 +23,7 @@ static bool isNearExplode = true;
 //static int rgms_no = 0;
 // static float missileGravityRate = 5F;
 double GUIDE_RATE = 0.05; // 0.05 - small ion missile, TR low, if TR is higher, need to lower this? 
-double ATAN_BASE = 0.7; // 1 - default 
+double ATAN_BASE = 2.0; // 1 - default 
 double APID_P = 10;
 double APID_D = 1.0;
 static bool useROT = false;
@@ -1112,7 +1112,8 @@ This_Missile_Director.GetTargetedEntity().IsEmpty() == false)
 
         // 2 换算不需要的加速度 平行制导率
         var trueGuideRate = GUIDE_RATE;
-        trueGuideRate *= Math.Max(maxSdl * 0.1D - 3D, 0.5D); //
+        // trueGuideRate *= Math.Max(maxSdl * 0.1D - 3D, 0.5D);
+        trueGuideRate *= Math.Max(maxSdl * 0.12D - 3D, 0.7D);
         if (RC.GetNaturalGravity().Length() < 0.01) trueGuideRate *= 0.8;
         // trueGuideRate *= 2 + RC.GetNaturalGravity().Length() * 0.1; // times?
         Vector3D rdo;
