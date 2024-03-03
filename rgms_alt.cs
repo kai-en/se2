@@ -1219,7 +1219,7 @@ This_Missile_Director.GetTargetedEntity().IsEmpty() == false)
             // 5.1 rd相对于LOS 需要的侧向加速度
             Vector3D rd2 = Vector3D.Reject(rd, tarN);
             double rd2l = rd2.Length();
-            if (sdl < rd2l) sdl = rd2l;
+            if (sdl < rd2l * 1.05) sdl = rd2l * 1.05; // make sure pdl is not zero
             // 5.2 剩余加速度长度 
             double pdl = Math.Sqrt(sdl * sdl - rd2l * rd2l);
 
