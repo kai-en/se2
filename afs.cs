@@ -54,7 +54,7 @@ namespace kradar_p
       decideMode();
       debug("standby: " + isStandBy);
       debug("ab: " + autoBalance + " ad: " + autoDown + " acc: " + isAcc + "\naf: " + (autoFollow ? Math.Round((motherPositionGet() + Vector3D.TransformNormal(followGetFP(), motherMatrixD) - shipPosition).Length(),2)+"" : "False") + " do: " + fpIdx
-      + " at: " + attackMode);
+      + " at: " + attackMode + " fb: " + (autoForward ? "F" : autoBackward ? "B" : "N"));
 
       // cam aim (optional)
       debug(camGroup.Aim(mainTarget, tickGet(), shipVel));
@@ -709,7 +709,18 @@ namespace kradar_p
     Vector3D moveInput = Vector3D.Zero;
     Vector3D moveInputDam = Vector3D.Zero;
     bool shipDam = true;
-    bool autoForward = false;
+    static bool autoForward = false;
+    static long autoForwardStart = 0;
+    static bool autoBackward = false;
+    static long autoBackwardStart = 0;
+
+    void clearAuto() {
+      autoForward = false;
+      autoBackward = false;
+      autoFollow = false;
+      autoBalance = false;
+      autoDown = false;
+    }
     void parseInput()
     {
       if (mainShipCtrl == null) return;
@@ -737,13 +748,6 @@ namespace kradar_p
     long backStart = 0;
     void decideMode()
     {
-      bool lastAcc = isAcc;
-      shortClick(ref backStart, moveInput.Z, true, 0.5, 0.1, ref isAcc);
-      if (lastAcc && !isAcc) {
-        shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
-        shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
-      }
-
       bool turnOn = shortClick(ref spaceStart, moveInput.Y, true, 0.5, 0.1, ref autoBalance);
       if (turnOn) {
         shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
@@ -769,6 +773,8 @@ namespace kradar_p
         cmdFollow = false;
         isDocking = false;
         attackMode = false;
+        autoForward = false;
+        autoBackward = false;
         if(fpIdx == fpList.Count - 1) {
           if ((shipPosition - motherPosition).Length() > fpList[0].Length())
             fpIdx = 0;
@@ -788,6 +794,8 @@ namespace kradar_p
         cmdDock = false;
         isDocking = true;
         attackMode = false;
+        autoForward = false;
+        autoBackward = false;
         setDampenersOverride(mainShipCtrl, false);
       }
 
@@ -796,6 +804,8 @@ namespace kradar_p
         autoFollow = false;
         autoDown = false;
         cmdControl = false;
+        autoForward = false;
+        autoBackward = false;
         isAcc = false;
         foreach (IMyThrust t in shipThrusts[0][T_FRONT])
         {
@@ -820,8 +830,25 @@ namespace kradar_p
           docked = true;
         }
       }
+
+      bool lastAutoForward = autoForward;
+      shortClick(ref autoForwardStart, moveInput.Z, false, -0.5, -0.1, ref autoForward, 180, 1800);
+      if (autoForward && !lastAutoForward) {
+        autoBackward = false;
+      } 
+      if (moveInput.Z > 0.1) {
+        autoForward = false;
+      }
+      bool lastAutoBackward = autoBackward;
+      shortClick(ref autoBackwardStart, moveInput.Z, true, 0.5, 0.1, ref autoBackward, 180, 1800);
+      if (autoBackward && !lastAutoBackward) {
+        autoForward = false;
+      }
+      if (moveInput.Z < -0.1) {
+        autoBackward = false;
+      }
     }
-    bool shortClick(ref long si, double inp, bool isP, double tl, double dl, ref bool mode)
+    bool shortClick(ref long si, double inp, bool isP, double tl, double dl, ref bool mode, long min = 0, long max = 30)
     {
       if (si == 0)
       {
@@ -835,7 +862,7 @@ namespace kradar_p
       {
         if ((isP && inp < dl) || (!isP && inp > dl))
         {
-          if (tickGet() - si > 30)
+          if (tickGet() - si > max || tickGet() - si < min )
           {
             mode = false;
             si = 0;
@@ -1381,8 +1408,9 @@ namespace kradar_p
         {
           t.ThrustOverridePercentage = 0;
         }
-        if (autoForward) shipThrusts[0][T_FRONT].ForEach(t => t.ThrustOverridePercentage = 1);
-        else shipThrusts[0][T_FRONT].ForEach(t => t.ThrustOverridePercentage = 0);
+        if (autoForward) shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true;t.ThrustOverridePercentage = 1;});
+        else if (autoBackward) shipThrusts[0][T_FRONT].ForEach(t => t.Enabled = false);
+        else shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true;t.ThrustOverridePercentage = 0;});
         if (moveInput.Z <= 0 && !isAcc) {
           shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = false;t.ThrustOverridePercentage = 0;});
         } else {
@@ -1519,8 +1547,13 @@ namespace kradar_p
           case "SUSPEND":
             suspendStart = tickGet();
             break;
-          case "FORWARD":
-            autoForward = !autoForward;
+          case "ACC":
+            bool lastAcc = isAcc;
+            isAcc = !isAcc;
+            if (lastAcc && !isAcc) {
+              shipThrusts[0][T_FRONT].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
+              shipThrusts[0][T_BACK].ForEach(t => {t.Enabled = true; t.ThrustOverridePercentage = 0;});
+            }
             break;
         }
         return;
