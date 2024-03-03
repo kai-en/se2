@@ -239,7 +239,7 @@ namespace kradar_p
 
       public string Aim(MainTarget mainTarget, long t, Vector3D shipVel) {
         string debug = "";
-        debug += "rc have: " + (rc != null) + "\n";
+        // debug += "rc have: " + (rc != null) + "\n";
         if (rc == null) return debug;
         if (this.rc!=null && lastUnderControl != this.rc.IsUnderControl) { 
           if(this.rc.IsUnderControl) { 
@@ -279,7 +279,7 @@ namespace kradar_p
           tp = mainTarget.estPosition(t) - this.ra.GetPosition() + aimStableOffset;
           tvToRcNml = Vector3D.TransformNormal(mainTarget.velocity - shipVel, rcLookAt) / tp.Length();
         }
-        debug += "have main target: " + (!mainTarget.lost(t)) + "\n";
+        // debug += "aim cam have: " + (!mainTarget.lost(t)) + "\n";
         // debug += "mt pos " + mainTarget.estPosition(t).X + "\n";
         // debug += tp.Length() + "\n";
 
@@ -287,9 +287,9 @@ namespace kradar_p
         
 		    var tpToRc = Vector3D.TransformNormal(tp, rcLookAt);
         var tpToRcNml = Vector3D.Normalize(tpToRc);
-        debug += "tptorc: " + tpToRcNml.X + "\n" + tpToRcNml.Y + "\n" + tpToRcNml.Z + "\n";
+        // debug += "tptorc: " + tpToRcNml.X + "\n" + tpToRcNml.Y + "\n" + tpToRcNml.Z + "\n";
 		    Vector3D.GetAzimuthAndElevation(tpToRcNml, out aa, out ea);
-        debug += "aaea: " + aa + "\n" + ea + "\n";
+        // debug += "aaea: " + aa + "\n" + ea + "\n";
 
         var a = (float)(-aa) - this.ra.Angle;
         if (a > Math.PI) a -= MathHelper.TwoPi;
@@ -894,10 +894,41 @@ namespace kradar_p
       if (i < - Math.PI) return i + Math.PI;
       return i;
     }
-    void balanceNoGravity() {
+    void balanceNoGravity(bool haveTarget) {
       bool[] needRYP = new bool[] { false, false, false };
 
-      if (!autoFollow && mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
+      if (haveTarget) {
+        Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr, axisMvr);
+        var tp = HitPoint - shipPosition;
+        Vector3D tarN = Vector3D.Normalize(tp);
+		    tarN = Vector3D.Transform(tarN, shipRevertMat);
+        SetGyroYaw( modAngle(Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE, true);
+        needRYP[1] = true;
+        SetGyroPitch(modAngle(Math.Atan2(tarN.Z, tarN.Y) + Math.PI * 0.5) * 0.6 * GYRO_RATE, true);
+        needRYP[2] = true;
+        
+        // fire
+        if ((tarN.Z < -AIM_LIMIT) && (tickGet() > (aimStart + AIM_DELAY * 60))) {
+          bool mil = false;
+          if (autoFollow) {
+            var mp = motherPosition - shipPosition;
+            var mpl = mp.Length();
+            if (mpl < tp.Length()) {
+              var mpn = Vector3D.Normalize(mp);
+              mpn = Vector3D.Transform(mpn, shipRevertMat);
+              if (mpn.Z < -0.99) mil = true;
+            }
+          }
+          if (!mil) {
+            if (isWeaponCore) {
+              shipWeapons.ForEach(w => wcPbApi.FireWeaponOnce(w));
+            } else {
+              shipWeapons.ForEach(w => w.ShootOnce());
+            }
+          }
+        }
+      } else if (!autoFollow && mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
+        // TODO have back thrust also use this?
         var needD = DeadZone(-shipVelLocalGet(), 0.1);
         if (needD.Length() > 0) {
           SetGyroYaw( modAngle(Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.4 * GYRO_RATE);
@@ -945,10 +976,7 @@ namespace kradar_p
 
       bool[] needRYP = new bool[] { false, false, false };
       if (mainShipCtrl == null) return;
-      if (pGravity.Length() < 0.01) {
-        balanceNoGravity();
-        return;
-      }
+
       double ma = shipMaxForceGet() / shipMass;
       double sideALimit = Math.Sqrt(ma * ma - pGravity.Length() * pGravity.Length()) * 0.8;
 
@@ -1046,6 +1074,12 @@ namespace kradar_p
       if (axisCr == 0) {
         string str = CfgGet("WEAPON_CURVE", "-0.13");
         double.TryParse(str, out axisCr);
+      }
+
+      debug("have target: " + haveTarget);
+      if (pGravity.Length() < 0.01) {
+        balanceNoGravity(haveTarget);
+        return;
       }
 
       if (haveTarget) {
