@@ -611,7 +611,7 @@ void callDcsSendEnemy()
 {
     //debugOnce = $"target {t} count {targetDataDict.Count}";
     List<KeyValuePair<long, TargetData>> enemyList = targetDataDict.Where(i => i.Value.Relation == TargetRelation.Enemy && (MePosition - i.Value.estPosition()).Length() < ALERT_RANGE).ToList();
-    debug("el: " + String.Join(" ", enemyList.Select(e => "e" + e.Value.priority + "")));
+    debug("el: " + String.Join("\n", enemyList.Select(e => "e" + e.Value.priority + " " + (MePosition - e.Value.estPosition()).Length())));
     enemyList.Sort((l, r) => {
         if (l.Value.priority != r.Value.priority) return l.Value.priority - r.Value.priority;
         else if (l.Value is KRadarTargetData && r.Value is KRadarTargetData && ((KRadarTargetData)l.Value).isSelected != ((KRadarTargetData)r.Value).isSelected) {
@@ -619,8 +619,8 @@ void callDcsSendEnemy()
             else return 1;
         }
         else return 
-        (int)((MePosition - r.Value.estPosition()).Length() -
-        (MePosition - l.Value.estPosition()).Length());
+        (int)((MePosition - l.Value.estPosition()).Length() -
+        (MePosition - r.Value.estPosition()).Length());
     });
     string message = "";
     if (enemyList.Count > 0)
