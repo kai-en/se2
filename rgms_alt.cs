@@ -899,8 +899,8 @@ void STD_GUIDANCE(MISSILE This_Missile, bool isClear, Vector3D targetPanelPositi
     This_Missile.MISSILE_TTL--;
     if (This_Missile.MISSILE_TTL <= 0 && !debugMode)
     {
-        foreach (var item in This_Missile.WARHEADS) { (item as IMyWarhead).IsArmed = true; }
-        foreach (var item in This_Missile.WARHEADS) { (item as IMyWarhead).Detonate(); }
+        foreach (var item in This_Missile.WARHEADS) { if (item is IMyWarhead) {(item as IMyWarhead).IsArmed = true;} else {item.ApplyAction("Arm");} }
+        foreach (var item in This_Missile.WARHEADS) { if (item is IMyWarhead) {(item as IMyWarhead).Detonate();} else {item.ApplyAction("Detonate");} }
         This_Missile.markRemove = true;
         return;
     }
@@ -1274,14 +1274,18 @@ This_Missile_Director.GetTargetedEntity().IsEmpty() == false)
     //Detonates warheads in close proximity
     bool targetNear = false;
     if (This_Missile.IS_CLEAR && (TargetPosition - MissilePosition).Length() < 140) //Arms
-    { foreach (var item in This_Missile.WARHEADS) { (item as IMyWarhead).IsArmed = true; } targetNear = true; }
+    { foreach (var item in This_Missile.WARHEADS) { if (item is IMyWarhead) {(item as IMyWarhead).IsArmed = true;} else {item.ApplyAction("Arm");} } targetNear = true; }
     bool targetGetFar = (TargetPosition - MissilePosition).LengthSquared() > (TargetPositionPrev - MissilePositionPrev).LengthSquared() && (TargetPosition - MissilePosition).LengthSquared() < 4 * 4;
     if (targetGetFar)
     {
         foreach (var item in This_Missile.WARHEADS) {
-            var wh = (IMyWarhead) item;
-            if (isNearExplode) wh.Detonate();
-            else wh.StartCountdown(); 
+            if (item is IMyWarhead) {
+                var wh = (IMyWarhead) item;
+                if (isNearExplode) wh.Detonate();
+                else wh.StartCountdown();
+            } else {
+                if (isNearExplode) item.ApplyAction("Detonate");
+            }
         }
     }
     var stop = Vector3D.Dot(Vector3D.Normalize(MissileVelocity), Vector3D.Normalize(lastVelocity));
@@ -1290,8 +1294,8 @@ This_Missile_Director.GetTargetedEntity().IsEmpty() == false)
     missileStop = missileStop && targetNear;
     if (missileStop) //A mighty earth shattering kaboom
     {
-        foreach (var item in This_Missile.WARHEADS) { (item as IMyWarhead).IsArmed = true; }
-        foreach (var item in This_Missile.WARHEADS) { (item as IMyWarhead).Detonate(); }
+        foreach (var item in This_Missile.WARHEADS) { if (item is IMyWarhead) {(item as IMyWarhead).IsArmed = true;} else {item.ApplyAction("Arm");} }
+        foreach (var item in This_Missile.WARHEADS) { if (item is IMyWarhead) {(item as IMyWarhead).Detonate();} else {item.ApplyAction("Detonate");} }
         This_Missile.markRemove = true;
         detonateCount ++;
     }
@@ -1337,6 +1341,9 @@ bool INIT_NEXT_MISSILE()
     GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(BATTERIES, b => b.CustomName.Contains(MissileTag) && (b is IMyBatteryBlock || b is IMyReactor));
     List<IMyTerminalBlock> WARHEADS = new List<IMyTerminalBlock>();
     GridTerminalSystem.GetBlocksOfType<IMyWarhead>(WARHEADS, b => b.CustomName.Contains(MissileTag));
+    if (WARHEADS.Count == 0) {
+        GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(WARHEADS, b => b.CustomName.Contains(MissileTag) && b.CustomName.Contains("Warhead"));
+    }
     List<IMyTerminalBlock> SPOTS = new List<IMyTerminalBlock>();
     GridTerminalSystem.GetBlocksOfType<IMyReflectorLight>(SPOTS, b => b.CustomName.Contains(MissileTag));
 
