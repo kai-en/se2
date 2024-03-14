@@ -1244,6 +1244,16 @@ namespace kradar_p
     #endregion balanceGravity
 
     #region controlThrust
+    void controlThrust(IMyThrust t, Vector3D nad, float p) {
+        var dot = (float)Vector3D.Dot(t.WorldMatrix.Backward, nad);
+        if (dot > 0) {
+          t.Enabled = true;
+          t.ThrustOverridePercentage = p * dot;
+        } else {
+          t.Enabled = false;
+          t.ThrustOverridePercentage = 0;
+        }
+    }
     void controlThrustNoGra() {
       if (!autoFollow && mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
         var svd = new Vector3D(0, 0, -1);
@@ -1260,15 +1270,27 @@ namespace kradar_p
           t.ThrustOverridePercentage = 0;
         });
       } else if (autoFollow) {
-        shipThrusts[0][T_UP].ForEach(t => {
-          t.Enabled = false;
-          t.ThrustOverridePercentage = 0;
-        });
-        double mf = shipMaxForceGet();
         Vector3D nad = new Vector3D(0, 0, -1);
+        float NG_AF_SIDE_R = 1f;
         if (naL1Back.Length() != 0) {
           nad = Vector3D.Normalize(naL1Back);
         }
+        shipThrusts[0][T_UP].ForEach(t => {
+          // t.Enabled = false;
+          // t.ThrustOverridePercentage = 0;
+          controlThrust(t, nad, (float)naL1Back.Length() * NG_AF_SIDE_R);
+        });
+        shipThrusts[0][T_DOWN].ForEach(t => {
+          controlThrust(t, nad, (float)naL1Back.Length() * NG_AF_SIDE_R);
+        });
+        shipThrusts[0][T_LEFT].ForEach(t => {
+          controlThrust(t, nad, (float)naL1Back.Length() * NG_AF_SIDE_R);
+        });
+        shipThrusts[0][T_RIGHT].ForEach(t => {
+          controlThrust(t, nad, (float)naL1Back.Length() * NG_AF_SIDE_R);
+        });
+        double mf = shipMaxForceGet();
+
         var nf = naL1Back.Length() * shipMass;
         float per = 0;
         if (mf > 0) {
