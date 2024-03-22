@@ -708,6 +708,7 @@ namespace kradar_p
     Vector3D angleInput = Vector3D.Zero;
     Vector3D moveInput = Vector3D.Zero;
     Vector3D moveInputDam = Vector3D.Zero;
+    Vector3D moveInputDamGlobal = Vector3D.Zero;
     bool shipDam = true;
     static bool autoForward = false;
     static long autoForwardStart = 0;
@@ -730,6 +731,7 @@ namespace kradar_p
       var sv = shipVelLocalGet();
       sv.Z = 0;
       moveInputDam += sv * -0.1;
+      moveInputDamGlobal = Vector3D.TransformNormal(moveInputDam, shipMatrix);
     }
     #endregion parseInput
 
@@ -1266,7 +1268,11 @@ namespace kradar_p
           t.ThrustOverridePercentage = 0;
         });
         shipThrusts[0][T_UP].ForEach(t => {
-          t.Enabled = false;
+          if (sv.Length() < 0.1) {
+            t.Enabled = true;
+          } else {
+            t.Enabled = false;
+          }
           t.ThrustOverridePercentage = 0;
         });
       } else if (autoFollow) {
@@ -1310,10 +1316,32 @@ namespace kradar_p
         });
 
       } else {
-        shipThrusts[0].ForEach(tl => tl.ForEach(t => {
+        Vector3D nad = new Vector3D(0, 0, -1);
+        float NG_AF_SIDE_R = 1f;
+        var need = DeadZone(moveInputDamGlobal, 0.01);
+        var nl = need.Length();
+        if (nl != 0) {
+          nad = Vector3D.Normalize(moveInputDamGlobal);
+        }
+        shipThrusts[0][T_UP].ForEach(t => {
+          controlThrust(t, nad, (float)nl * NG_AF_SIDE_R);
+        });
+        shipThrusts[0][T_DOWN].ForEach(t => {
+          controlThrust(t, nad, (float)nl * NG_AF_SIDE_R);
+        });
+        shipThrusts[0][T_LEFT].ForEach(t => {
+          controlThrust(t, nad, (float)nl * NG_AF_SIDE_R);
+        });
+        shipThrusts[0][T_RIGHT].ForEach(t => {
+          controlThrust(t, nad, (float)nl * NG_AF_SIDE_R);
+        });
+        shipThrusts[0][T_FRONT].ForEach(t => {
           t.Enabled = true;
-          t.ThrustOverridePercentage = 0;
-        }));
+        });
+        // shipThrusts[0].ForEach(tl => tl.ForEach(t => {
+        //   t.Enabled = true;
+        //   t.ThrustOverridePercentage = 0;
+        // }));
       }
     }
     void controlThrust()

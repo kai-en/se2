@@ -1017,7 +1017,7 @@ void GetTurretTargets()
     NetworkTargets();
 
     // targetDataDict.Clear(); don't clear kradar target, it will clean by parseKRadarTarget function
-    targetDataDict = targetDataDict.Where(x => x.Value is KRadarTargetData || t - x.Value.t < 120).ToDictionary(x => x.Key, x => x.Value);
+    targetDataDict = targetDataDict.Where(x => x.Value is KRadarTargetData || t - x.Value.t < 300).ToDictionary(x => x.Key, x => x.Value);
 }
 
 void Draw(float startProportion, float endProportion)
@@ -1103,7 +1103,7 @@ class KRadarTargetData : TargetData
 
     public static double SIZE_RATIO_ERROR = 0.1;
     public static double POS_ABS_ERROR = 300;
-    public static long MAX_LIVE_FRAME = 180;
+    public static long MAX_LIVE_FRAME = 300;
 
     public static long maxId = 1;
 

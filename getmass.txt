@@ -57,4 +57,4 @@ Echo("mass: " + msc.CalculateShipMass().PhysicalMass);
 // (- 1296.2 323) 973.2
 // (- 2282.8 323) 1959.8
 
-2018.2 - 323
+2018.2 - 323 1695.2
