@@ -6,6 +6,20 @@ using System.Text;
 using System.Threading.Tasks;
 using VRageMath;
 
+using Sandbox.ModAPI.Ingame;
+using Sandbox.ModAPI.Interfaces;
+using SpaceEngineers.Game.ModAPI.Ingame;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using VRage.Game;
+using VRage.Game.ModAPI.Ingame;
+using VRageMath;
+using VRage.Game.ModAPI.Ingame.Utilities;
+using SharpDX.XInput;
+using System.Numerics;
+
 namespace fcsr_p
 {
     partial class Program : MyGridProgram
@@ -182,6 +196,10 @@ static bool usingSearchStable=true;
 static int frameInterval = 15;
 static float tvnToRpm = (float)(1.0 / Math.Sin(1.0 / 60));
 
+static WcPbApi wcPbApi = new WcPbApi();
+static bool isWeaponCore = false;
+static bool triedWeaponCore = false;
+
 Program()
 {
 Runtime.UpdateFrequency = UpdateFrequency.Update1;
@@ -191,6 +209,16 @@ void Main(string arguments)
 {
 	t ++;//时钟
 	debugInfo = "";
+
+	if (!triedWeaponCore && !isWeaponCore) {
+		triedWeaponCore = true;
+		try {
+			wcPbApi.Activate(Me);
+			isWeaponCore = true;
+		} catch {
+
+		}
+	}
 
 	//接收指令
 	if(arguments == "Debug"){DebugMode = true;}
@@ -215,7 +243,7 @@ void Main(string arguments)
 	}
 	else if("ResetOffset".Equals(arguments)) { 
 		// FEATURE 0220
-		FCSR.ForEach(x=>x.AimOffset=Vector2.Zero);
+		FCSR.ForEach(x=>x.AimOffset=Vector2D.Zero);
     }
 	else if ("NoManual".Equals(arguments)) { 
 		isNoManual = true;
@@ -583,7 +611,11 @@ public class Target
 	
 	public void GetTarget(IMyLargeTurretBase autoWeapon)
 	{
-		MyDetectedEntityInfo thisEntity = autoWeapon.GetTargetedEntity();
+		MyDetectedEntityInfo? thisEntityQ;
+		if (isWeaponCore) thisEntityQ = wcPbApi.GetWeaponTarget(autoWeapon);
+		else thisEntityQ = autoWeapon.GetTargetedEntity();
+		if (thisEntityQ == null || !thisEntityQ.HasValue) return;
+		MyDetectedEntityInfo thisEntity = thisEntityQ.Value;
 		if(!thisEntity.IsEmpty()){
 			// Target lt = new Target();
 			// foreach ( Target ti in LastTargetList ) {
@@ -688,7 +720,7 @@ public class RotorBase
 	static float pp=20F,pi=1F,pd=0F, pim=0.01F;
 	public List<PIDController> pidXL = new List<PIDController>();
 	public List<PIDController> pidYL = new List<PIDController>();
-	public Vector2 AimOffset = Vector2.Zero;
+	public Vector2D AimOffset = Vector2D.Zero;
     private long lastEntityId = 0;
     private IMyProjector aimSightBlock = null;
 	public bool lastSearchStable = false;
@@ -1095,7 +1127,7 @@ public class RotorBase
 			lastSearchStable = this.controller.IsUnderControl;
 		}
 		if(this.controller != null && this.controller.IsUnderControl){
-			Vector2 MouseInput = this.controller.RotationIndicator;
+			Vector2D MouseInput = this.controller.RotationIndicator;
 			if(MouseInput.Length() > 0.1) {
 				if(isNoManual) { 
                     searchStableDir = this.AimBlock.WorldMatrix.Forward;
@@ -1149,9 +1181,9 @@ public class RotorBase
                    }
                    //debugInfo += "\n"+FCS_T.Position;
 				   // FEATURE 0220
-				   if (FCS_T.EntityId != this.lastEntityId) this.AimOffset = Vector2.Zero;
+				   if (FCS_T.EntityId != this.lastEntityId) this.AimOffset = Vector2D.Zero;
 				   this.lastEntityId = FCS_T.EntityId;
-				   Vector2 MouseInput = this.controller.RotationIndicator;
+				   Vector2D MouseInput = this.controller.RotationIndicator;
 					float ControlRatio = 0.01F;
 					this.AimOffset += MouseInput * ControlRatio;
                    this.AimAtTarget(FCS_T.Position, FCS_T.Velocity, Vector3D.Zero);
@@ -1246,18 +1278,20 @@ public class RotorBase
 																	//}
 						}
 					}
-					//debugInfo += $"\nin range: {Vector3D.Distance(MyAttackTarget.Position, this.Position)} {sensorActive} {isAimedOK}";
+					//if (t % frameInterval == this.refreshFrame) this.debugInfoInter += $"\nin range: {Vector3D.Distance(MyAttackTarget.Position, this.Position)} {sensorActive} {this.isAimOk}";
 					if (Vector3D.Distance(MyAttackTarget.Position, this.Position) <= this.bulletMaxRange && !sensorActive)
 					{
 						if (isFireWhenAimOK)
 						{
 							if (this.isAimOk)
 							{
+								if (t % frameInterval == this.refreshFrame) this.debugInfoInter += $"\nFIRE";
 								this.Fire();
 							}
 						}
 						else
 						{
+							if (t % frameInterval == this.refreshFrame) this.debugInfoInter += $"\nFIRE2";
 							this.Fire();
 						}
 					}
@@ -1441,8 +1475,9 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 	// ------ 开火 ---------
 	public void Fire()
 	{
+		if (t % frameInterval == this.refreshFrame) this.debugInfoInter += $"\nwc: {this.Weapons.Count()}";
 		foreach(var w in this.Weapons) { 
-			debugInfo += "\n" + w.DetailedInfo;
+			if (t % frameInterval == this.refreshFrame) this.debugInfoInter += "\n" + w.DetailedInfo;
 		}
 		if (!isAutoFire) return;
 		if (t < lastFireFrame + fireIntervalFrame) return;
@@ -1450,7 +1485,14 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 		if (this.Weapons.Count == 0) return;
 
 		fireIntervalIdx = (fireIntervalIdx+1) % this.Weapons.Count;
-		this.Weapons[fireIntervalIdx].ApplyAction(ShootActionName);
+		if (isWeaponCore) {
+			if (t % frameInterval == this.refreshFrame) this.debugInfoInter += $"\nFireWeaponCore: {fireIntervalIdx}";
+			wcPbApi.FireWeaponOnce(this.Weapons[fireIntervalIdx]);
+		} else {
+			if (t % frameInterval == this.refreshFrame) this.debugInfoInter += $"\nFireVanilla: {fireIntervalIdx}";
+			this.Weapons[fireIntervalIdx].ApplyAction(ShootActionName);
+		}
+		
 	}
 	
 	// ------ 显示LCD --------
@@ -1780,6 +1822,9 @@ return r;
 static float toRa(float i) {
 return (i / 180F) * (float)Math.PI;
 }
+static double toRa(double i) {
+return (i / 180D) * Math.PI;
+}
 
 static string displayVector3D(Vector3D tar) {
 return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(tar.Z, 2);
@@ -1845,10 +1890,17 @@ double avx = tv2.X;
 if (Math.Abs(avx) > aV) return Vector3D.Zero; // 炮速赶不上tv2.X 无法追踪
 //debugString += "\navx: " + avx;
 
+
+double aVyz = Math.Sqrt(aV*aV - avx*avx);
+// 后续采用新的牛顿法
+double theta = calcThetaInPlane(aVyz, tv2.Z, tv2.Y, tp2.Z, tp2.Y, -g.Length());
+if (theta > 0.99*Math.PI) return Vector3D.Zero;
+
+/*
 // 3 无视g 先算一个avy avz
 // 3.1 假设减掉tvYZ, Z轴剩余速度有avzd, 则Y轴需要的剩余速度为 (tpy/tpz)*avzd
 // 有 (tvz+avzd)2 + (tvy + (tpy/tpz)avzd)2 = aVyz2
-double aVyz = Math.Sqrt(aV*aV - avx*avx);
+
 if (tv2.Z*tv2.Z + tv2.Y*tv2.Y > aVyz*aVyz) return Vector3D.Zero; // yz面目标速度大于炮弹速度 追不上, 不考虑利用重力加速度追 (缺陷2)
 // tpz 不可能为0 因为能建座标系就表示有向前的分量, 即z方向分量)
 // 采用一元二次方程 ax2 +bx + c = 0方式, 整理a , b, c
@@ -1900,13 +1952,89 @@ if (n < 0) return Vector3D.Zero; // Z轴追及时间为负, 无法追踪
 //debugString += "\nn: " + n;
 
 }
+*/
 
 // 5 将avx avy avz 转回绝对座标系 并输出(注意本来这里应该输出碰撞点位置 , 但这里以发射速度代替, 所以还要加上本机位置, 调用者处理)
-avyp *= 0.98;
+double avyp = aVyz * Math.Sin(theta);
+double avz = aVyz * Math.Cos(theta);
+
+// avyp *= 0.98;// 简单微调压枪
 Vector3D av2m = new Vector3D(avx, avyp, avz);
-Vector3D av = Vector3.Transform(av2m, Matrix.Transpose(tranmt));
+debugString += "\nav2m: " + displayVector3D(av2m);
+Vector3D av = Vector3D.Transform(av2m, Matrix.Transpose(tranmt));
 //debugString += "\nav: " + displayVector3D(av);
 return av;
+}
+
+// 新算法 求导牛顿法 迭代4次
+static double calcThetaInPlane(double mv, double vx, double vy, double tx, double ty, double g) {
+  /*
+  已知
+- mv = 速度标量
+- vx = 目标速度x 方向
+- vy = 目标速度y 方向
+- tx = x距离
+- ty = y距离
+- g = 重力加速度
+
+求
+- t = 追及时间
+- theta = 仰角
+
+
+- 式1 mv * cos * t = tx + vx * t
+- 式2 (mv * sin + g * t)积分 = ty + vy * t
+  - mv * sin * t + g * t * t * 0.5 = ty + vy * t
+  
+  
+  cos = (tx + vx*t) / (mv * t)
+  sin = (ty + vy*t - g*t*t*0.5) / (mv * t)
+  (tx + vx*t)^2 + (ty + vy*t - 0.5*g*t^2)^2 = mv^2 * t^2
+  tx^2 + 2*tx*vx*t + vx^2*t^2 + 
+  ty^2 + vy^2*t^2 + 0.25*g^2*t^4 + 2*ty*vy*t + (-1)*ty*g*t^2 + (-1)*vy*g*t^3
+  = mv^2 * t^2
+  
+  0.25*g^2*t^4
+  (-1)*vy*g*t^3
+  vx^2*t^2 + vy^2*t^2 + (-1)*ty*g*t^2 + (-1)*mv^2*t^2
+  2*tx*vx*t + 2*ty*vy*t
+  tx^2 + ty^2 
+  */
+
+  double a = 0.25 * g * g; // t4
+  double b = (-1)*vy*g; // t3
+  double c = vx*vx + vy*vy + (-1)*ty*g + (-1)*mv*mv;
+  double d = 2*tx*vx + 2*ty*vy;
+  double e = tx*tx + ty*ty;
+
+  // 按g=0做初始猜测
+  // mv cos t = tx + vx * t
+  // mv sin t = ty + vy * t
+  // mv^2 t^2 = tx^2 + 2 tx vx t + vx^2 t^2 + ty^2 + 2 ty vy t + vy^2 t^2
+  double a0 = vx*vx + vy*vy - mv*mv;
+  double b0 = 2*tx*vx + 2*ty*vy;
+  double c0 = tx*tx + ty*ty;
+
+  // x = (-b ± √ (b^2 - 4ac)) / 2a
+  double delta0 = b0*b0 - 4*a0*c0;
+  if (delta0 < 0) return Math.PI;//表示不可能
+  double t0a = (-b0 - Math.Sqrt(delta0)) / (2 * a0);
+  double t0b = (-b0 + Math.Sqrt(delta0)) / (2 * a0);
+  if (t0a < 0 && t0b < 0) return Math.PI;
+  double t0 = 0;
+  if (t0a > 0) t0 = t0a; //优先用时间短的
+  else t0 = t0b;
+
+  double tn = t0;
+  for(int i = 0; i < 4; i++) {
+    double error = a * Math.Pow(tn, 4) + b * Math.Pow(tn, 3) + c * Math.Pow(tn, 2) + d * tn + e;
+    double dirn = 4 * a * Math.Pow(tn, 3) + 3*b*Math.Pow(tn, 2) + 2*c*tn + d;
+    tn = tn - (error / dirn);
+  }
+
+  if (tn < 0) return Math.PI;
+  double theta = Math.Acos((tx + vx * tn)/(mv * tn));
+  return theta;
 }
 
 static IMyProgrammableBlock fcsComputer = null;
@@ -1963,7 +2091,56 @@ return ret;
 }
 
 
+#region wc
+    public class WcPbApi
+    {
+        private Action<IMyTerminalBlock, bool, int> _fireWeaponOnce;
+				private Func<IMyTerminalBlock, int, MyDetectedEntityInfo> _getWeaponTarget;
+        /// <summary>Initializes the API.</summary>
+        /// <exception cref="Exception">If the WcPbAPI property added by WeaponCore couldn't be found on the block.</exception>
+        public bool Activate(IMyTerminalBlock pbBlock)
+        {
+            var dict = pbBlock.GetProperty("WcPbAPI")?.As<IReadOnlyDictionary<string, Delegate>>().GetValue(pbBlock);
+            if (dict == null) throw new Exception($"WcPbAPI failed to activate");
+            return ApiAssign(dict);
+        }
 
+        /// <summary>Assigns WeaponCore's API methods to callable properties.</summary>
+        public bool ApiAssign(IReadOnlyDictionary<string, Delegate> delegates)
+        {
+            if (delegates == null)
+                return false;
+            AssignMethod(delegates, "FireWeaponOnce", ref _fireWeaponOnce);
+						AssignMethod(delegates, "GetWeaponTarget", ref _getWeaponTarget);
+            return true;
+        }
+
+        /// <summary>Assigns a delegate method to a property.</summary>
+        private void AssignMethod<T>(IReadOnlyDictionary<string, Delegate> delegates, string name, ref T field) where T : class
+        {
+            if (delegates == null) {
+                field = null;
+                return;
+            }
+            Delegate del;
+            if (!delegates.TryGetValue(name, out del))
+                throw new Exception($"{GetType().Name} :: Couldn't find {name} delegate of type {typeof(T)}");
+            field = del as T;
+            if (field == null)
+                throw new Exception(
+                    $"{GetType().Name} :: Delegate {name} is not type {typeof(T)}, instead it's: {del.GetType()}");
+        }
+
+        /// <summary>Fires the given weapon once. Optionally shoots a specific barrel of the weapon. Might be bugged atm.</summary>
+        public void FireWeaponOnce(IMyTerminalBlock weapon, bool allWeapons = true, int weaponId = 0) =>
+            _fireWeaponOnce?.Invoke(weapon, allWeapons, weaponId);
+				
+				/// <summary>Returns info about the Entity targeted by the weapon block.</summary>
+        public MyDetectedEntityInfo? GetWeaponTarget(IMyTerminalBlock weapon, int weaponId = 0) =>
+            _getWeaponTarget?.Invoke(weapon, weaponId) ?? null;
+
+    }
+    #endregion wc
 
 
         #endregion
