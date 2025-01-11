@@ -19,6 +19,7 @@ using VRageMath;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using SharpDX.XInput;
 using System.Numerics;
+using VRage;
 
 namespace fcsr_p
 {
@@ -28,7 +29,7 @@ namespace fcsr_p
 
 // start
 
-static bool usingTurretAsSrc = false; // if using radar output, set to false
+static bool usingTurretAsSrc = false; // if using kradar, set to false(no need, duplicated target)
 static bool isHoming = false; // 超出射程是否归位
 static bool isOnOff = true; //是否开机 舰船true 可变战机手臂 false
 static bool OnlyAttackUpPlane = false; //自动选择目标时是否只选择转子基座炮塔的上半球面里的目标（当目标低于该炮塔时不选择这个目标） 舰船一般true 可变战机一般false
@@ -404,8 +405,9 @@ private void axisCannon()
 		var tarList = TargetList.Where(x=>x.isFCS);
 		if (!tarList.Any()) break;
 		var tar = tarList.First();
-		
-		Vector3D HitPoint = HitPointCaculate(msc.GetPosition(), msc.GetShipVelocities().LinearVelocity, Vector3D.Zero, tar.Position + msc.WorldMatrix.Up * axisYOffset, tar.Velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, msc.GetNaturalGravity(), axisBr, axisCr);
+
+		string debugString = "";	
+		Vector3D HitPoint = HitPointCaculate(msc.GetPosition(), msc.GetShipVelocities().LinearVelocity, Vector3D.Zero, tar.Position + msc.WorldMatrix.Up * axisYOffset, tar.Velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, msc.GetNaturalGravity(), axisBr, axisCr, ref debugString);
         Vector3D tarN = Vector3D.Normalize(HitPoint - msc.GetPosition());
 		tarN = Vector3D.Transform(tarN, MatrixD.CreateLookAt(Vector3D.Zero, msc.WorldMatrix.Forward, msc.WorldMatrix.Up));
 		output = tarN.X + ":" + tarN.Y + ":" + tarN.Z;
@@ -1139,7 +1141,7 @@ public class RotorBase
 				var lM = MatrixD.CreateFromDir(this.AimBlock.WorldMatrix.Forward, Vector3D.Normalize(need));
 				var axis = lM.Down; //Right wrong
 				float ROTATE_RATIO = 0.001F;
-				searchStableDir = Vector3D.Transform(searchStableDir, Quaternion.CreateFromAxisAngle(axis, (float)MouseInput.Length()*ROTATE_RATIO));
+				searchStableDir = Vector3D.Transform(searchStableDir, VRageMath.Quaternion.CreateFromAxisAngle(axis, (float)MouseInput.Length()*ROTATE_RATIO));
 			//for(int i = 0; i < this.RotorXs.Count; i ++){
 			//	this.RotorXs[i].TargetVelocityRPM = (float)(MouseInput.Y * RotorXField[i] * PlayerAimRatio);
 			//}
@@ -1373,8 +1375,10 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 		Vector3D ng = Vector3D.Zero;
 		if (msc != null) ng = msc.GetNaturalGravity();
 		//debugInfo += "\nbs: " + bs;
-		Vector3D HitPoint = HitPointCaculate(this.Position, thisV, thisA, Position + msc.WorldMatrix.Up * (OFFSET_Y + RANDOM_Y * 0.001 * R_D.Next(-1000, 1000)), Velocity, Acceleration, bs, ba, bm, FireTimers.Count > 0 ? 1F : gravityRate, ng, bulletMaxRange, curvationRate);
-                        Vector3D tp2me = Position - this.Position;
+		string debugString = "";
+		Vector3D HitPoint = HitPointCaculate(this.Position, thisV, thisA, Position + msc.WorldMatrix.Up * (OFFSET_Y + RANDOM_Y * 0.001 * R_D.Next(-1000, 1000)), Velocity, Acceleration, bs, ba, bm, FireTimers.Count > 0 ? 1F : gravityRate, ng, bulletMaxRange, curvationRate, ref debugString);
+		if (t % frameInterval == this.refreshFrame) this.debugInfoInter += debugString;
+    Vector3D tp2me = Position - this.Position;
 		var tp = HitPoint - this.Position;
 		Vector3D TargetPositionToMe = new Vector3D(0,0,-1);
 		if (HitPoint != Vector3D.Zero) {
@@ -1385,14 +1389,14 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 		if (FireTimers.Count>0) {
 			// ABK piston gun aim angle correction
 			// https://www.andre-gaschler.com/rotationconverter/
-			TargetPositionToMe = Vector3D.Transform(TargetPositionToMe, new Quaternion((float)Math.Sin(toRa(xdegree * 0.5F)), 0, 0, (float)Math.Cos(toRa(xdegree * 0.5F))));
+			TargetPositionToMe = Vector3D.Transform(TargetPositionToMe, new VRageMath.Quaternion((float)Math.Sin(toRa(xdegree * 0.5F)), 0, 0, (float)Math.Cos(toRa(xdegree * 0.5F))));
 		}
 
 		// FEATURE 0220
 		if (this.AimOffset.Length() > 0) { 
 		    // 先x再y?
-			TargetPositionToMe = Vector3D.Transform(TargetPositionToMe, new Quaternion(0, (float)Math.Sin(toRa(-this.AimOffset.Y * 0.5F)), 0, (float)Math.Cos(toRa(-this.AimOffset.Y * 0.5F))));
-			TargetPositionToMe = Vector3D.Transform(TargetPositionToMe, new Quaternion((float)Math.Sin(toRa(-this.AimOffset.X * 0.5F)), 0, 0, (float)Math.Cos(toRa(-this.AimOffset.X * 0.5F))));
+			TargetPositionToMe = Vector3D.Transform(TargetPositionToMe, new VRageMath.Quaternion(0, (float)Math.Sin(toRa(-this.AimOffset.Y * 0.5F)), 0, (float)Math.Cos(toRa(-this.AimOffset.Y * 0.5F))));
+			TargetPositionToMe = Vector3D.Transform(TargetPositionToMe, new VRageMath.Quaternion((float)Math.Sin(toRa(-this.AimOffset.X * 0.5F)), 0, 0, (float)Math.Cos(toRa(-this.AimOffset.X * 0.5F))));
         }
 
 		
@@ -1522,13 +1526,13 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 // ============ 辅助函数 =============
 static Vector3D HitPointCaculate(Vector3D Me_Position, Vector3D Me_Velocity, Vector3D Me_Acceleration, Vector3D Target_Position, Vector3D Target_Velocity, Vector3D Target_Acceleration,    
 							double Bullet_InitialSpeed, double Bullet_Acceleration, double Bullet_MaxSpeed,
-float gravityRate, Vector3D ng, double bulletMaxRange, double curvationRate)   
+float gravityRate, Vector3D ng, double bulletMaxRange, double curvationRate, ref string debugString)   
 {
-	string debugString = "";
+	// debugString = "";
 	//GravityHitPointCaculate(new Vector3D(1, 1, 0), new Vector3D(0,0,-1), new Vector3D(0,-1,0), 3D, out debugString);
 	//debugInfo += "\nghpc\n" + debugString + "\n";
 	if (gravityRate > 0 && ng.Length() != 0) {
-		var ret = GravityHitPointCaculate(Target_Position - Me_Position, Target_Velocity - Me_Velocity, ng * gravityRate, Bullet_InitialSpeed, bulletMaxRange, curvationRate, out debugString);
+		var ret = GravityHitPointCaculate(Target_Position - Me_Position, Target_Velocity - Me_Velocity, ng * gravityRate, Bullet_InitialSpeed, bulletMaxRange, curvationRate, ref debugString);
 		if (ret == Vector3D.Zero) return Vector3D.Zero;
 		ret += Me_Position;
 		// debugInfo += "\nghpc\n" + debugString + "\n";
@@ -1830,8 +1834,8 @@ static string displayVector3D(Vector3D tar) {
 return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(tar.Z, 2);
 }
 
-static Vector3D GravityHitPointCaculate(Vector3D tp, Vector3D tv, Vector3D g, double aV, double bulletMaxRange, double curvationRate, out string debugString) {
-debugString = "";
+static Vector3D GravityHitPointCaculate(Vector3D tp, Vector3D tv, Vector3D g, double aV, double bulletMaxRange, double curvationRate, ref string debugString) {
+
 // 问题5 怀疑星球曲率原因，对g采取近小远大处理
 var gd = Vector3D.Normalize(g);
 var ngtpr = Vector3D.Reject(tp, gd).Length();
@@ -1893,7 +1897,7 @@ if (Math.Abs(avx) > aV) return Vector3D.Zero; // 炮速赶不上tv2.X 无法追�
 
 double aVyz = Math.Sqrt(aV*aV - avx*avx);
 // 后续采用新的牛顿法
-double theta = calcThetaInPlane(aVyz, tv2.Z, tv2.Y, tp2.Z, tp2.Y, -g.Length());
+double theta = calcThetaInPlane(aVyz, tv2.Z, tv2.Y, tp2.Z, tp2.Y, -g.Length(), ref debugString);
 if (theta > 0.99*Math.PI) return Vector3D.Zero;
 
 /*
@@ -1967,7 +1971,7 @@ return av;
 }
 
 // 新算法 求导牛顿法 迭代4次
-static double calcThetaInPlane(double mv, double vx, double vy, double tx, double ty, double g) {
+static double calcThetaInPlane(double mv, double vx, double vy, double tx, double ty, double g, ref string myDebugInfo) {
   /*
   已知
 - mv = 速度标量
@@ -2034,6 +2038,14 @@ static double calcThetaInPlane(double mv, double vx, double vy, double tx, doubl
 
   if (tn < 0) return Math.PI;
   double theta = Math.Acos((tx + vx * tn)/(mv * tn));
+
+	if (true) {
+    double t = tx / (mv*Math.Cos(theta) - vx);
+    double pmy = mv * Math.Sin(theta) * t + g * t * t * 0.5;
+    double pty = ty + vy * t;
+    myDebugInfo += $"t, pmy, pty, {t}, {pmy}, {pty}";
+  }
+
   return theta;
 }
 
