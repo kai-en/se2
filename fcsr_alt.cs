@@ -1897,7 +1897,7 @@ if (Math.Abs(avx) > aV) return Vector3D.Zero; // 炮速赶不上tv2.X 无法追�
 
 double aVyz = Math.Sqrt(aV*aV - avx*avx);
 // 后续采用新的牛顿法
-double theta = calcThetaInPlane(aVyz, tv2.Z, tv2.Y, tp2.Z, tp2.Y, -g.Length(), ref debugString);
+double theta = calcThetaInPlane(aVyz, -tv2.Z, tv2.Y, -tp2.Z, tp2.Y, -g.Length(), ref debugString);
 if (theta > 0.99*Math.PI) return Vector3D.Zero;
 
 /*
@@ -1972,6 +1972,7 @@ return av;
 
 // 新算法 求导牛顿法 迭代4次
 static double calcThetaInPlane(double mv, double vx, double vy, double tx, double ty, double g, ref string myDebugInfo) {
+	myDebugInfo += $"\n{mv:F2}, {vx:F2}, {vy:F2}, {tx:F2}, {ty:F2}, {g:F2}";
   /*
   已知
 - mv = 速度标量
@@ -2039,14 +2040,14 @@ static double calcThetaInPlane(double mv, double vx, double vy, double tx, doubl
   if (tn < 0) return Math.PI;
   double theta = Math.Acos((tx + vx * tn)/(mv * tn));
 
-	if (true) {
-    double t = tx / (mv*Math.Cos(theta) - vx);
-    double pmy = mv * Math.Sin(theta) * t + g * t * t * 0.5;
-    double pty = ty + vy * t;
-    myDebugInfo += $"t, pmy, pty, {t}, {pmy}, {pty}";
-  }
-
-  return theta;
+	// Acos实际有2个解 theta or -theta 所以还需要验算 看哪个是真正的解
+	double t = tx / (mv*Math.Cos(theta) - vx);
+  double pmy1 = mv * Math.Sin(theta) * t + g * t * t * 0.5;
+  double pmy2 = mv * Math.Sin(-theta) * t + g * t * t * 0.5;
+  double pty = ty + vy * t;
+  // 根据误差选择theta或-theta作为解
+  if (Math.Abs(pmy1 - pty) < Math.Abs(pmy2 - pty)) return theta;
+  else return -theta;
 }
 
 static IMyProgrammableBlock fcsComputer = null;
