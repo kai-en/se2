@@ -295,8 +295,8 @@ void Main(string arguments)
 	//这里获取了自动武器和所有的转子基座炮塔
 	if(!init){GetBlocks(); return;}
 	
-	debugInfo += "\nisOn: " + isOnOff;
-            debugInfo += "\nFCSR Count: " + FCSR.Count;
+	debugInfo += $"\nisOn: {isOnOff} readAutoWeaponTarget: {usingTurretAsSrc}";
+  debugInfo += "\nFCSR Count: " + FCSR.Count;
 	foreach ( var r in FCSR ) {
 		debugInfo += "\n" + r.debugInit + "\n" + r.debugInfo + "\n" + r.debugInfoInter;
 	}
