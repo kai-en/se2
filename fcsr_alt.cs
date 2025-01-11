@@ -1960,9 +1960,9 @@ if (n < 0) return Vector3D.Zero; // Z轴追及时间为负, 无法追踪
 
 // 5 将avx avy avz 转回绝对座标系 并输出(注意本来这里应该输出碰撞点位置 , 但这里以发射速度代替, 所以还要加上本机位置, 调用者处理)
 double avyp = aVyz * Math.Sin(theta);
-double avz = aVyz * Math.Cos(theta);
+double avz = - aVyz * Math.Cos(theta);
 
-// avyp *= 0.98;// 简单微调压枪
+// avyp *= 0.98;// 简单微调压枪??
 Vector3D av2m = new Vector3D(avx, avyp, avz);
 debugString += "\nav2m: " + displayVector3D(av2m);
 Vector3D av = Vector3D.Transform(av2m, Matrix.Transpose(tranmt));
