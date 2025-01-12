@@ -2061,7 +2061,7 @@ namespace kradar_p
       avz * avz + avy * avy = aV * aV  - avx * avx 
       由于avx已知, 可知 avz 和 avy 形成一个圆形
 
-      假设gay = 0 先求一个n出来, 再把gay代入, 重新计算avy avz n 迭代多次逼近正确的n值
+      之后调用平面内投石追及问题的函数（详见函数实现）
 
       */
 
@@ -2084,74 +2084,101 @@ namespace kradar_p
       double avx = tv2.X;
       if (Math.Abs(avx) > aV) return Vector3D.Zero; // 炮速赶不上tv2.X 无法追踪
                                                     //debugString += "\navx: " + avx;
-
-      // 3 无视g 先算一个avy avz
-      // 3.1 假设减掉tvYZ, Z轴剩余速度有avzd, 则Y轴需要的剩余速度为 (tpy/tpz)*avzd
-      // 有 (tvz+avzd)2 + (tvy + (tpy/tpz)avzd)2 = aVyz2
       double aVyz = Math.Sqrt(aV * aV - avx * avx);
-      if (tv2.Z * tv2.Z + tv2.Y * tv2.Y > aVyz * aVyz) return Vector3D.Zero; // yz面目标速度大于炮弹速度 追不上, 不考虑利用重力加速度追 (缺陷2)
-                                                                             // tpz 不可能为0 因为能建座标系就表示有向前的分量, 即z方向分量)
-                                                                             // 采用一元二次方程 ax2 +bx + c = 0方式, 整理a , b, c
-      double fa = 1 + ((tp2.Y * tp2.Y) / (tp2.Z * tp2.Z));
-      double fb = 2 * tv2.Z + 2 * tv2.Y * (tp2.Y / tp2.Z);
-      double fc = tv2.Z * tv2.Z + tv2.Y * tv2.Y - aVyz * aVyz;
-      if (fb * fb - 4 * fa * fc < 0) return Vector3D.Zero; // 无解, 返回
-                                                           // 根据 一元二次方程求根公式, 计算x (即avzd)
-      double x = (-fb + Math.Sqrt(fb * fb - 4 * fa * fc)) / (2 * fa);
-      double avz = 0;
-      if (tv2.Z + x < 0)
-      {
-        avz = tv2.Z + x;
-      }
-      else
-      {
-        x = (-fb - Math.Sqrt(fb * fb - 4 * fa * fc)) / (2 * fa);
-        avz = tv2.Z + x;
-      }
-      double avy = tv2.Y + (tp2.Y / tp2.Z) * x;
 
-      // 3.2 根据z轴, 算追及时间 n
-      double zdelta = avz - tv2.Z;
-      double n = tp2.Z / zdelta;
-      if (n < 0) return Vector3D.Zero; // Z轴追及时间为负, 无法追踪
-                                       //debugString += "\naVyz: " + aVyz;
-                                       //debugString += "\navy: " + avy;
-                                       //debugString += "\navz: " + avz;
-                                       //debugString += "\nn: " + n;
-
-      // 4 循环逼近多次(这个方程应该有解, 但这里采取逼近法简化)(缺陷3) 加速度的问题 主要是计算avyg分量应该取多少
-      double avyg = 0;
-      double avyp = avy;
-      for (int i = 0; i < 4; i++)
-      {
-        // 4.1 按当前n 计算avyg, 取avyg = 0.5 * (-g) * n ; 举例, g为 向下10, 时间1秒, 我们需要向上5, 这样前0.5秒为上升期, 后0.5秒为下降期, 上升距离=下降距离, 不影响瞄准
-        avyg = 0.5 * g.Length() * n;
-        // 4.2 由于时间n变长了, 需要重新计算avy
-        avyp = tv2.Y + (tp2.Y / n);
-        // 4.3 加上avyg
-        avyp = avyp + avyg;
-        if (Math.Abs(avyp) > aVyz) return Vector3D.Zero;
-        double avzL = Math.Sqrt(aVyz * aVyz - avyp * avyp);
-        avz = -avzL;
-        zdelta = avz - tv2.Z;
-        double nn = tp2.Z / zdelta;
-        if (nn > n) n = nn;
-        else n = (nn + n) / 2;
-        if (n < 0) return Vector3D.Zero; // Z轴追及时间为负, 无法追踪
-
-        //debugString += "\navy: " + avyp;
-        //debugString += "\navz: " + avz;
-        //debugString += "\nn: " + n;
-
-      }
+      // 后续采用新的牛顿法
+      double theta = calcThetaInPlane(aVyz, -tv2.Z, tv2.Y, -tp2.Z, tp2.Y, -g.Length(), ref debugString);
+      if (theta > 0.99*Math.PI) return Vector3D.Zero;
+      double avyp = aVyz * Math.Sin(theta);
+      double avz = - aVyz * Math.Cos(theta);
 
       // 5 将avx avy avz 转回绝对座标系 并输出(注意本来这里应该输出碰撞点位置 , 但这里以发射速度代替, 所以还要加上本机位置, 调用者处理)
-      avyp *= 0.98;
       Vector3D av2m = new Vector3D(avx, avyp, avz);
       Vector3D av = Vector3D.Transform(av2m, Matrix.Transpose(tranmt));
       //debugString += "\nav: " + displayVector3D(av);
       return av;
     }
+
+    // 新算法 求导牛顿法 迭代4次
+static double calcThetaInPlane(double mv, double vx, double vy, double tx, double ty, double g, ref string myDebugInfo) {
+	myDebugInfo += $"\n{mv:F2}, {vx:F2}, {vy:F2}, {tx:F2}, {ty:F2}, {g:F2}";
+  /*
+  已知
+- mv = 速度标量
+- vx = 目标速度x 方向
+- vy = 目标速度y 方向
+- tx = x距离
+- ty = y距离
+- g = 重力加速度
+
+求
+- t = 追及时间
+- theta = 仰角
+
+
+- 式1 mv * cos * t = tx + vx * t
+- 式2 (mv * sin + g * t)积分 = ty + vy * t
+  - mv * sin * t + g * t * t * 0.5 = ty + vy * t
+  
+  
+  cos = (tx + vx*t) / (mv * t)
+  sin = (ty + vy*t - g*t*t*0.5) / (mv * t)
+  (tx + vx*t)^2 + (ty + vy*t - 0.5*g*t^2)^2 = mv^2 * t^2
+  tx^2 + 2*tx*vx*t + vx^2*t^2 + 
+  ty^2 + vy^2*t^2 + 0.25*g^2*t^4 + 2*ty*vy*t + (-1)*ty*g*t^2 + (-1)*vy*g*t^3
+  = mv^2 * t^2
+  
+  0.25*g^2*t^4
+  (-1)*vy*g*t^3
+  vx^2*t^2 + vy^2*t^2 + (-1)*ty*g*t^2 + (-1)*mv^2*t^2
+  2*tx*vx*t + 2*ty*vy*t
+  tx^2 + ty^2 
+  */
+
+  double a = 0.25 * g * g; // t4
+  double b = (-1)*vy*g; // t3
+  double c = vx*vx + vy*vy + (-1)*ty*g + (-1)*mv*mv;
+  double d = 2*tx*vx + 2*ty*vy;
+  double e = tx*tx + ty*ty;
+
+  // 按g=0做初始猜测
+  // mv cos t = tx + vx * t
+  // mv sin t = ty + vy * t
+  // mv^2 t^2 = tx^2 + 2 tx vx t + vx^2 t^2 + ty^2 + 2 ty vy t + vy^2 t^2
+  double a0 = vx*vx + vy*vy - mv*mv;
+  double b0 = 2*tx*vx + 2*ty*vy;
+  double c0 = tx*tx + ty*ty;
+
+  // x = (-b ± √ (b^2 - 4ac)) / 2a
+  double delta0 = b0*b0 - 4*a0*c0;
+  if (delta0 < 0) return Math.PI;//表示不可能
+  double t0a = (-b0 - Math.Sqrt(delta0)) / (2 * a0);
+  double t0b = (-b0 + Math.Sqrt(delta0)) / (2 * a0);
+  if (t0a < 0 && t0b < 0) return Math.PI;
+  double t0 = 0;
+  if (t0a > 0) t0 = t0a; //优先用时间短的
+  else t0 = t0b;
+
+  double tn = t0;
+  for(int i = 0; i < 4; i++) {
+    double error = a * Math.Pow(tn, 4) + b * Math.Pow(tn, 3) + c * Math.Pow(tn, 2) + d * tn + e;
+    double dirn = 4 * a * Math.Pow(tn, 3) + 3*b*Math.Pow(tn, 2) + 2*c*tn + d;
+    tn = tn - (error / dirn);
+  }
+
+  if (tn < 0) return Math.PI;
+  double theta = Math.Acos((tx + vx * tn)/(mv * tn));
+
+	// Acos实际有2个解 theta or -theta 所以还需要验算 看哪个是真正的解
+	double t = tx / (mv*Math.Cos(theta) - vx);
+  double pmy1 = mv * Math.Sin(theta) * t + g * t * t * 0.5;
+  double pmy2 = mv * Math.Sin(-theta) * t + g * t * t * 0.5;
+  double pty = ty + vy * t;
+  // 根据误差选择theta或-theta作为解
+  if (Math.Abs(pmy1 - pty) < Math.Abs(pmy2 - pty)) return theta;
+  else return -theta;
+}
+
     #endregion aim
 
     #region wc
