@@ -1446,10 +1446,10 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 			var a = (float)(-aa*this.RotorXField[i]) - this.RotorXs[i].Angle;
 			if (a > Math.PI) a = a - MathHelper.TwoPi;
 			if (a < -Math.PI) a = a + MathHelper.TwoPi;
-			if (t % frameInterval == this.refreshFrame) this.debugInfoInter+=$"\nazierror:{a}";
+			if (t % frameInterval == this.refreshFrame) this.debugInfoInter+=$"\nazierror:{a:F6}";
 			//debugInfo+=$"\nazir: {(float)tvToRcNml.X * tvnToRpm}";
-			this.RotorXs[i].TargetVelocityRPM = (float)pidXL[i].Filter(a,2, this.RotorXs[i].TargetVelocityRPM) + (float)tvToRcNml.X * tvnToRpm * 0.225F;
-			if (t % frameInterval == this.refreshFrame) this.debugInfoInter += "\n" + this.RotorXs[i].TargetVelocityRPM;
+			this.RotorXs[i].TargetVelocityRPM = (float)pidXL[i].Filter(a,6, this.RotorXs[i].TargetVelocityRPM) + (float)tvToRcNml.X * tvnToRpm * 0.225F;
+			if (t % frameInterval == this.refreshFrame) this.debugInfoInter += $"\narpm {this.RotorXs[i].TargetVelocityRPM:F6}";
 		}
 			for(int i = 0; i < this.RotorYs.Count; i ++){
 				//this.RotorYs[i].TargetVelocityRPM = (float)(PitchValue * this.RotorYField[i] * RotorMaxSpeed);
@@ -1457,7 +1457,9 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 			if (a > Math.PI) a = a - MathHelper.TwoPi;
 			if (a < -Math.PI) a = a + MathHelper.TwoPi;
 			// (float)tvToRcNml.Y*tvnToRpm
-			this.RotorYs[i].TargetVelocityRPM = (float)pidYL[i].Filter(a,2, this.RotorYs[i].TargetVelocityRPM) + (float)tvToRcNml.Y * tvnToRpm * 0.225F;
+			this.RotorYs[i].TargetVelocityRPM = (float)pidYL[i].Filter(a,6, this.RotorYs[i].TargetVelocityRPM) + (float)tvToRcNml.Y * tvnToRpm * 0.225F;
+			if (t % frameInterval == this.refreshFrame && i == 0) this.debugInfoInter += $"\neleerror {a:F6}";
+			if (t % frameInterval == this.refreshFrame && i == 0) this.debugInfoInter += $"\nerpm {this.RotorYs[i].TargetVelocityRPM:F6}";
 			}
 		
 		// 计算当前与预期瞄准点的瞄准夹角
