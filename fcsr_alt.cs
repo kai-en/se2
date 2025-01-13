@@ -1447,8 +1447,7 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 			if (a > Math.PI) a = a - MathHelper.TwoPi;
 			if (a < -Math.PI) a = a + MathHelper.TwoPi;
 			if (t % frameInterval == this.refreshFrame) this.debugInfoInter+=$"\nazierror:{a:F6}";
-			//debugInfo+=$"\nazir: {(float)tvToRcNml.X * tvnToRpm}";
-			this.RotorXs[i].TargetVelocityRPM = (float)pidXL[i].Filter(a,6, this.RotorXs[i].TargetVelocityRPM) + (float)tvToRcNml.X * tvnToRpm * 0.225F;
+			this.RotorXs[i].TargetVelocityRPM = (float)pidXL[i].Filter(a,6, this.RotorXs[i].TargetVelocityRPM) ;
 			if (t % frameInterval == this.refreshFrame) this.debugInfoInter += $"\narpm {this.RotorXs[i].TargetVelocityRPM:F6}";
 		}
 			for(int i = 0; i < this.RotorYs.Count; i ++){
@@ -1456,8 +1455,7 @@ return Math.Round(tar.X, 2) + ", " + Math.Round(tar.Y, 2) + ", " + Math.Round(ta
 			var a = (float)(ea*this.RotorYField[i]) - this.RotorYs[i].Angle;
 			if (a > Math.PI) a = a - MathHelper.TwoPi;
 			if (a < -Math.PI) a = a + MathHelper.TwoPi;
-			// (float)tvToRcNml.Y*tvnToRpm
-			this.RotorYs[i].TargetVelocityRPM = (float)pidYL[i].Filter(a,6, this.RotorYs[i].TargetVelocityRPM) + (float)tvToRcNml.Y * tvnToRpm * 0.225F;
+			this.RotorYs[i].TargetVelocityRPM = (float)pidYL[i].Filter(a,6, this.RotorYs[i].TargetVelocityRPM) ;
 			if (t % frameInterval == this.refreshFrame && i == 0) this.debugInfoInter += $"\neleerror {a:F6}";
 			if (t % frameInterval == this.refreshFrame && i == 0) this.debugInfoInter += $"\nerpm {this.RotorYs[i].TargetVelocityRPM:F6}";
 			}
