@@ -200,6 +200,8 @@ static Vector3D testPosLast = new Vector3D();
 static long testTLast = 0;
 static Queue<Vector3D> testQueue = new Queue<Vector3D>();
 
+static String[] tickShow = {"|", "/", "-", "\\"};
+
 //#endregion 
 
 //#region Main Routine 
@@ -340,7 +342,7 @@ public IEnumerable<bool> DroneLaunchHandler()
 void Main(string arg, UpdateType updateSource)
 {
     if(arg == null || arg.Equals("")) t++;
-    debugInfo = "";
+    debugInfo = $"{tickShow[t%4]}";
     if (!inited)
     {
         init();
@@ -495,6 +497,7 @@ void Main(string arg, UpdateType updateSource)
     scheduler.Update();
     // kaien
     parseFcsTarget();
+    debug($"pr, {tickShow[t%4]}");
     parseKRadarTarget();
     doAimMark();
 
@@ -2547,14 +2550,19 @@ void parseKRadarTarget()
                 ke.haveVe = true;
             }
             // 0116 对ke的pos直接进行基于kradarFrameOffset 的估算
-            debugInt($"{ke.ve.Length() * (1D/10000000D) * (DateTime.UtcNow.Ticks - kradarLastUpdate), 7:F2}");
-            ke.pos += ke.ve * (1D/10000000D) * (DateTime.UtcNow.Ticks - kradarLastUpdate);
+            debugInt($"kv: {ke.ve.Length(), 7:F2}");
+            var offsetSec = (1D/10000000D) * (DateTime.UtcNow.Ticks - kradarLastUpdate);
+            debugInt($"nd: {ke.ve.Length() * offsetSec, 7:F2}");
+            ke.pos += ke.ve * offsetSec;
             var nowv = ke.pos - testPosLast;
-            var tdiff = t - testTLast;
-            nowv /= tdiff;
-            testTLast = t;
-            debugInt($"nowv: {nowv.Length(), 7:F2} tdiff: {tdiff}");
             testPosLast = ke.pos;
+            var tdiff = t - testTLast;
+            nowv = nowv / tdiff * 60D;
+            testTLast = t;
+            debugInt($"nv: {nowv.Length(), 7:F2}");
+            debugInt($"tdiff: {tdiff} offsetSec: {offsetSec, 7:F2}");
+            debugInt($"vd: {(nowv - ke.ve).Length(), 7:F2}"); // 根据位置算的速度 与实际速度的差值
+            
             testQueue.Enqueue(nowv);
             if (testQueue.Count > 10) testQueue.Dequeue();
             var avgv = testQueue.Aggregate((a, b) => a + b)/testQueue.Count;
@@ -2567,7 +2575,10 @@ void parseKRadarTarget()
 
 
     // get all kradar target
-    List<KRadarTargetData> kradarTargetList = targetDataDict.Where(x => x.Value is KRadarTargetData && t - ((KRadarTargetData)x.Value).lastFrame < KRadarTargetData.MAX_LIVE_FRAME).Select(x => (KRadarTargetData)x.Value).ToList();
+    foreach(var kvp in targetDataDict.Where(x => x.Value is KRadarTargetData && t - ((KRadarTargetData)x.Value).lastFrame > KRadarTargetData.MAX_LIVE_FRAME).ToList()) {
+        targetDataDict.Remove(kvp.Key);
+    }
+    List<KRadarTargetData> kradarTargetList = targetDataDict.Where(x => x.Value is KRadarTargetData).Select(x => (KRadarTargetData)x.Value).ToList();
 
     //debug("kp count: " + kradarPosList.Count() + " " + kradarTargetList.Count());
     kradarPosList.ForEach(kp => {kp.occupied = false;});
