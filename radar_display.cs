@@ -200,8 +200,6 @@ static Vector3D testPosLast = new Vector3D();
 static long testTLast = 0;
 static Queue<Vector3D> testQueue = new Queue<Vector3D>();
 
-static String[] tickShow = {"|", "/", "-", "\\"};
-
 //#endregion 
 
 //#region Main Routine 
@@ -342,7 +340,7 @@ public IEnumerable<bool> DroneLaunchHandler()
 void Main(string arg, UpdateType updateSource)
 {
     if(arg == null || arg.Equals("")) t++;
-    debugInfo = $"{tickShow[t%4]}";
+    debugInfo = $"{runningSymbols[t%8]}";
     if (!inited)
     {
         init();
@@ -497,7 +495,7 @@ void Main(string arg, UpdateType updateSource)
     scheduler.Update();
     // kaien
     parseFcsTarget();
-    debug($"pr, {tickShow[t%4]}");
+    debug($"pr, {runningSymbols[t%8]}");
     parseKRadarTarget();
     doAimMark();
 
