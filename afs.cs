@@ -11,6 +11,8 @@ using VRageMath;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using SharpDX.XInput;
 using System.Numerics;
+using System.Diagnostics;
+using System.Collections;
 
 namespace kradar_p
 {
@@ -22,10 +24,15 @@ namespace kradar_p
     Kaien's automatic fly system V0.1
     */
 
+    Program()
+    {
+      Runtime.UpdateFrequency = UpdateFrequency.Update1;
+    }
+
     void Main(string arguments, UpdateType updateType)
     {
       // start up
-      Runtime.UpdateFrequency = UpdateFrequency.Update1;
+      //Runtime.UpdateFrequency = UpdateFrequency.Update1;
 
       // parse command
       parseRadar(arguments);
@@ -36,7 +43,12 @@ namespace kradar_p
         // return;
       }
       
-      tickPlus();
+      if(arguments==null || arguments.Equals("")) {
+        debug("noargus");
+        tickPlus();
+      }
+      else debug("hasargus");
+      
       if (autoFollow && tickGet() % 15 != 0) return;
 
       // check ship
@@ -102,8 +114,8 @@ namespace kradar_p
     void debugStaticClear() {
       staticDebugInfo = "";
     }
-    string debugInfo;
-    void debug(string info)
+    static string debugInfo;
+    static void debug(string info)
     {
       debugInfo += info + "\n";
     }
@@ -432,9 +444,10 @@ namespace kradar_p
         double.TryParse(str, out i);
         str = CfgGet("AIM_PID_D", "0");
         double.TryParse(str, out d);
-        pidGY = new PIDController(p,i,d,1F,-1F,60);
-        pidGP = new PIDController(p,i,d,1F,-1F,60);
-        pidGR = new PIDController(p,i,d,1F,-1F,60);
+        float ilimit = 1;
+        pidGY = new PIDController(p,i,d,ilimit,-ilimit,60);
+        pidGP = new PIDController(p,i,d,ilimit,-ilimit,60);
+        pidGR = new PIDController(p,i,d,ilimit,-ilimit,60);
       }
 
       if (fpList.Count == 0)
@@ -564,7 +577,7 @@ namespace kradar_p
     PIDController pidGY, pidGP, pidGR;
     void SetGyroYaw(double yawRate, bool aim = false)
     {
-      yawRate -= shipAV.Y * -0.1;
+      //yawRate -= shipAV.Y * -0.1;
       if (gyroAntiDithering && Math.Abs(yawRate) < gyroDZ) yawRate = rateAdjust(yawRate);
       else yawRate *= 60;
       if (aim && pidGY != null) yawRate = pidGY.Filter(yawRate, 3);
@@ -989,6 +1002,8 @@ namespace kradar_p
       if (needRYP.Any(b => b)) SetGyroOverride(true);
       else SetGyroOverride(false);
     }
+
+    Queue<Vector3D> debugQueue = new Queue<Vector3D>();
     void balanceGravity()
     {
       if (vtRotors.Count > 0) {
@@ -1117,8 +1132,23 @@ namespace kradar_p
         // aim 
         Vector3D HitPoint = HitPointCaculate(shipPosition, shipVelGet(), Vector3D.Zero, mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset, mainTarget.velocity, Vector3D.Zero, axisBs, 0, axisBs, (float)axisGr, pGravity, axisBr, axisCr, axisMvr);
         var tp = HitPoint - shipPosition;
+        var debugtp = mainTarget.estPosition(tickGet()) + shipMatrix.Up * axisYOffset - shipPosition;
+        debugtp = Vector3D.Transform(debugtp, shipRevertMat);
+
+        // TODO 0116 tp.x时正时负？
+        // 检查tp方差
+        debugQueue.Enqueue(mainTarget.estPosition(tickGet()));
+        if (debugQueue.Count > 10) debugQueue.Dequeue();
+        var dqavg = debugQueue.Aggregate((a, b) => a + b) / debugQueue.Count;
+        var dqvrnc = debugQueue.Select((a) => (a - dqavg).Length()).Average();
+        debug($"tp vrnc: {dqvrnc,7:F2}");
+
+        // 
+        debug($"tpxyz: {debugtp.X,7:F2} {debugtp.Y,7:F2} {debugtp.Z,7:F2}");
         Vector3D tarN = Vector3D.Normalize(tp);
 		    tarN = Vector3D.Transform(tarN, shipRevertMat);
+        //debug($"azierror {modAngle(Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5):F6}");
+        //debug($"eleerror {modAngle(Math.Atan2(tarN.Z, tarN.Y) + Math.PI * 0.5):F6}");
         SetGyroYaw( modAngle(Math.Atan2(tarN.Z, tarN.X) + Math.PI * 0.5) * 0.6 * GYRO_RATE, true);
         needRYP[1] = true;
         SetGyroPitch(modAngle(Math.Atan2(tarN.Z, tarN.Y) + Math.PI * 0.5) * 0.6 * GYRO_RATE, true);
@@ -2265,13 +2295,15 @@ public double Filter(double input, int r, double cu, double step = 0.1)
   return MathHelper.Clamp(w, cu - step, cu + step);
 }
 
-public double Filter(double input, int round_d_digits)
+public double Filter(double input, int round_d_digits, bool de = false)
 {
 double roundedInput = Math.Round(input, round_d_digits);
 
 integral = integral + (input / second);
-integral = (upperLimit_i > 0 && integral > upperLimit_i ? upperLimit_i : integral);
-integral = (lowerLimit_i < 0 && integral < lowerLimit_i ? lowerLimit_i : integral);
+integral = MathHelper.Clamp(integral, lowerLimit_i, upperLimit_i);
+if (de) debug($"pid iv: {integral:F2}");
+//integral = (upperLimit_i > 0 && integral > upperLimit_i ? upperLimit_i : integral);
+//integral = (lowerLimit_i < 0 && integral < lowerLimit_i ? lowerLimit_i : integral);
 
 double derivative = (roundedInput - lastInput) * second;
 lastInput = roundedInput;

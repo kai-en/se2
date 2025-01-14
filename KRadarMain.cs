@@ -414,7 +414,7 @@ namespace KRadarNamespace
                 }
 
                 StringBuilder sb = new StringBuilder();
-                sb.Append(frameCount).Append('\n');
+                sb.Append(DateTime.UtcNow.Ticks).Append('\n');
                 if (debugInfo.Length > 0) sb.Append(debugInfo);
                 foreach (IMyEntity foundEntity in cAvaliableGridEntities ?? new List<IMyEntity>())
                 {
@@ -551,7 +551,7 @@ namespace KRadarNamespace
                 }
 
                 StringBuilder sb = new StringBuilder();
-                sb.Append(frameCount).Append('\n');
+                sb.Append(DateTime.UtcNow.Ticks).Append('\n');
                 if (debugInfo.Length > 0) sb.Append(debugInfo);
                 foreach (IMyEntity foundEntity in cAvaliableGridEntities ?? new List<IMyEntity>())
                 {

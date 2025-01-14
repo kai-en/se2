@@ -107,7 +107,7 @@ const int MAX_REBROADCAST_INGEST_COUNT = 2;
 string MOTHER_CODE = "2ndUsagi1";
 static string debugInfo = "";
 static string debugOnce = "";
-bool pauseDebug = false;
+static string debugInterval = "";
 string COCKPIT_NAME = "Reference";
 static int t = 0;
 MatrixD refLookAtMatrix = new MatrixD();
@@ -195,6 +195,10 @@ IEnumerator<bool> LaunchStateMachine;
 
 double ALERT_RANGE = 5000;
 static long kradarLastUpdate = 0;
+static Vector3D testVec = new Vector3D();
+static Vector3D testPosLast = new Vector3D();
+static long testTLast = 0;
+static Queue<Vector3D> testQueue = new Queue<Vector3D>();
 
 //#endregion 
 
@@ -335,8 +339,8 @@ public IEnumerable<bool> DroneLaunchHandler()
 
 void Main(string arg, UpdateType updateSource)
 {
-    t++;
-    if (!pauseDebug) debugInfo = "debug info:";
+    if(arg == null || arg.Equals("")) t++;
+    debugInfo = "";
     if (!inited)
     {
         init();
@@ -611,7 +615,7 @@ void callDcsSendEnemy()
 {
     //debugOnce = $"target {t} count {targetDataDict.Count}";
     List<KeyValuePair<long, TargetData>> enemyList = targetDataDict.Where(i => i.Value.Relation == TargetRelation.Enemy && (MePosition - i.Value.estPosition()).Length() < ALERT_RANGE).ToList();
-    debug("el: " + String.Join("\n", enemyList.Select(e => "e" + e.Value.priority + " " + (MePosition - e.Value.estPosition()).Length())));
+    //debug("el: " + String.Join("\n", enemyList.Select(e => "e" + e.Value.priority + " " + (MePosition - e.Value.estPosition()).Length())));
     enemyList.Sort((l, r) => {
         if (l.Value.priority != r.Value.priority) return l.Value.priority - r.Value.priority;
         else if (l.Value is KRadarTargetData && r.Value is KRadarTargetData && ((KRadarTargetData)l.Value).isSelected != ((KRadarTargetData)r.Value).isSelected) {
@@ -643,7 +647,7 @@ void sendPosition(long entityId, TargetData td, string cmd = "RADAR")
     Vector3D currentPos = td.estPosition();
     if (currentPos == null || currentPos.X == 0)
     {
-        debugInfo = "error";
+        // debugInfo = "error";
     }
     Vector3D speed = td.Velocity;
     string motherCode = td.Code;
@@ -1036,6 +1040,7 @@ void PrintDetailedInfo()
 {
     Echo($"WMI Radar System Online{RunningSymbol()}\n(Version {VERSION} - {DATE})");
     Echo(debugInfo);
+    Echo(debugInterval);
     Echo($"{lastSetupResult}");
     Echo($"Text surfaces: {textSurfaces.Count}");
     Echo($"\nReference seat:\n\"{(reference?.CustomName)}\"");
@@ -2496,11 +2501,14 @@ void parseKRadarTarget()
     foreach (var l in lines)
     {
         if(firstLine) { 
-            long updateFrame;
-            bool get = long.TryParse(l, out updateFrame);
+            long updateTimestamp;
+            bool get = long.TryParse(l, out updateTimestamp);
             if (!get) break;
-            if (updateFrame == kradarLastUpdate) break;
-            kradarLastUpdate = updateFrame;
+            if (updateTimestamp == kradarLastUpdate) break;
+            kradarLastUpdate = updateTimestamp;
+            // 0116 求本地frame与kradarframe的平均差
+            debugInterval = "";
+            
             firstLine = false;
             kradarPosList.Clear();
             continue;
@@ -2538,6 +2546,20 @@ void parseKRadarTarget()
                 ke.ve = new Vector3D(vx, vy, vz);
                 ke.haveVe = true;
             }
+            // 0116 对ke的pos直接进行基于kradarFrameOffset 的估算
+            debugInt($"{ke.ve.Length() * (1D/10000000D) * (DateTime.UtcNow.Ticks - kradarLastUpdate), 7:F2}");
+            ke.pos += ke.ve * (1D/10000000D) * (DateTime.UtcNow.Ticks - kradarLastUpdate);
+            var nowv = ke.pos - testPosLast;
+            var tdiff = t - testTLast;
+            nowv /= tdiff;
+            testTLast = t;
+            debugInt($"nowv: {nowv.Length(), 7:F2} tdiff: {tdiff}");
+            testPosLast = ke.pos;
+            testQueue.Enqueue(nowv);
+            if (testQueue.Count > 10) testQueue.Dequeue();
+            var avgv = testQueue.Aggregate((a, b) => a + b)/testQueue.Count;
+            var tqvrnc = testQueue.Select((a) => (a - avgv).Length()).Average();
+            debugInt($"tqvrnc: {tqvrnc, 7:F2}");
         }
 
         kradarPosList.Add(ke);
@@ -2545,19 +2567,13 @@ void parseKRadarTarget()
 
 
     // get all kradar target
-    List<KRadarTargetData> kradarTargetList = targetDataDict.Where(x => x.Value is KRadarTargetData).Select(x => (KRadarTargetData)x.Value).ToList();
+    List<KRadarTargetData> kradarTargetList = targetDataDict.Where(x => x.Value is KRadarTargetData && t - ((KRadarTargetData)x.Value).lastFrame < KRadarTargetData.MAX_LIVE_FRAME).Select(x => (KRadarTargetData)x.Value).ToList();
 
-    debug("kp count: " + kradarPosList.Count() + " " + kradarTargetList.Count());
+    //debug("kp count: " + kradarPosList.Count() + " " + kradarTargetList.Count());
     kradarPosList.ForEach(kp => {kp.occupied = false;});
     // predict pos and best match
     foreach (var kt in kradarTargetList)
     {
-        if (t - kt.lastFrame > KRadarTargetData.MAX_LIVE_FRAME)
-        {
-            targetDataDict.Remove(kt.id);
-            debug("lf over");
-            continue;
-        }
         var dt = t - kt.lastFrame;
         var kv = kt.Velocity;
         var kvf = ((1D / 60) * kt.Velocity);
@@ -2585,7 +2601,7 @@ void parseKRadarTarget()
                 break;
             }
         }
-        debug(debugString);
+        //debug(debugString);
 
         if (found != null)
         {
@@ -2633,7 +2649,7 @@ void parseKRadarTarget()
     {
         IMyTextSurface ts = ((IMyTextSurfaceProvider)Me).GetSurface(0);
         StringBuilder sb = new StringBuilder();
-        sb.Append(kradarLastUpdate+"\n");
+        sb.Append(t + "\n");
         foreach (var kt in kradarTargetList)
         {
             if (kt.isDisabled) continue;
@@ -2648,12 +2664,15 @@ void parseKRadarTarget()
         }
         ts.WriteText(sb.ToString());
     }
-    debug("foundCount: " + foundCount);
+    //debug("foundCount: " + foundCount);
 }
 
 void debug(string v)
 {
-    if (!pauseDebug) debugInfo += "\n" + v;
+    debugInfo += "\n" + v;
+}
+void debugInt(string v) {
+    debugInterval += "\n" + v;
 }
 
 static double getLogLen(double len)
