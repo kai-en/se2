@@ -298,13 +298,15 @@ namespace kradar_p
         debug += a * RPMRatio + "\n";
         // float TV_RPM_RATIO = 0.225F;
         float TV_RPM_RATIO = 0.5F;
-			  this.ra.TargetVelocityRPM = a * RPMRatio - (float)tvToRcNml.X * tvnToRpm * TV_RPM_RATIO;
+			  //this.ra.TargetVelocityRPM = a * RPMRatio - (float)tvToRcNml.X * tvnToRpm * TV_RPM_RATIO; // 0114 check this
+        this.ra.TargetVelocityRPM = a * RPMRatio;
 
         var e = (float)(ea) - this.re.Angle;
         if (e > Math.PI) e -= MathHelper.TwoPi;
         if (e < -Math.PI) e += MathHelper.TwoPi;
         debug += e * RPMRatio + "\n";
-        this.re.TargetVelocityRPM = e * RPMRatio + (float)tvToRcNml.Y * tvnToRpm * TV_RPM_RATIO;
+        // this.re.TargetVelocityRPM = e * RPMRatio + (float)tvToRcNml.Y * tvnToRpm * TV_RPM_RATIO;
+        this.re.TargetVelocityRPM = e * RPMRatio;
 
         return debug;
 		  }
@@ -2285,7 +2287,10 @@ integral = lastInput = 0;
 
     #endregion pid
 
-    #endregion ingamescript
+
+
+
+#endregion ingamescript
 
   }
 }
