@@ -1092,13 +1092,13 @@ namespace kradar_p
       }
       long.TryParse(aimDelayStr, out AIM_DELAY);
 
-      if (axisYOffset == 0) {
-        string str = CfgGet("WEAPON_OFFSET_Y", "0.5");
-        double.TryParse(str, out axisYOffset);
-      }
+      // if (axisYOffset == 0) {
+      //   string str = CfgGet("WEAPON_OFFSET_Y", "0.5");
+      //   double.TryParse(str, out axisYOffset);
+      // }
 
       if (axisBs == 0) {
-        string str = CfgGet("WEAPON_BULLET_SPEED", "350");
+        string str = CfgGet("WEAPON_BULLET_SPEED", "400");
         double.TryParse(str, out axisBs);
       }
 
@@ -1108,7 +1108,7 @@ namespace kradar_p
       }
 
       if (axisGr == 0) {
-        string str = CfgGet("WEAPON_GRAVITY_AFFECT", "0.75");
+        string str = CfgGet("WEAPON_GRAVITY_AFFECT", "0.1");
         double.TryParse(str, out axisGr);
       }
 
@@ -1118,7 +1118,7 @@ namespace kradar_p
       }
 
       if (axisCr == 0) {
-        string str = CfgGet("WEAPON_CURVE", "-0.13");
+        string str = CfgGet("WEAPON_CURVE", "0");
         double.TryParse(str, out axisCr);
       }
 
