@@ -2552,20 +2552,21 @@ void parseKRadarTarget()
             var offsetSec = (1D/10000000D) * (DateTime.UtcNow.Ticks - kradarLastUpdate);
             debugInt($"nd: {ke.ve.Length() * offsetSec, 7:F2}");
             ke.pos += ke.ve * offsetSec;
-            var nowv = ke.pos - testPosLast;
-            testPosLast = ke.pos;
-            var tdiff = t - testTLast;
-            nowv = nowv / tdiff * 60D;
-            testTLast = t;
-            debugInt($"nv: {nowv.Length(), 7:F2}");
-            debugInt($"tdiff: {tdiff} offsetSec: {offsetSec, 7:F2}");
-            debugInt($"vd: {(nowv - ke.ve).Length(), 7:F2}"); // 根据位置算的速度 与实际速度的差值
-            
-            testQueue.Enqueue(nowv);
-            if (testQueue.Count > 10) testQueue.Dequeue();
-            var avgv = testQueue.Aggregate((a, b) => a + b)/testQueue.Count;
-            var tqvrnc = testQueue.Select((a) => (a - avgv).Length()).Average();
-            debugInt($"tqvrnc: {tqvrnc, 7:F2}");
+            if (ke.ve.Length() > 10) {
+                var nowv = ke.pos - testPosLast;
+                testPosLast = ke.pos;
+                var tdiff = t - testTLast;
+                nowv = nowv / tdiff * 60D;
+                testTLast = t;
+                debugInt($"nv: {nowv.Length(), 7:F2}");
+                debugInt($"tdiff: {tdiff} offsetSec: {offsetSec, 7:F2}");
+                debugInt($"vd: {(nowv - ke.ve).Length(), 7:F2}"); // 根据位置算的速度 与实际速度的差值
+                testQueue.Enqueue(nowv);
+                if (testQueue.Count > 10) testQueue.Dequeue();
+                var avgv = testQueue.Aggregate((a, b) => a + b)/testQueue.Count;
+                var tqvrnc = testQueue.Select((a) => (a - avgv).Length()).Average();
+                debugInt($"tqvrnc: {tqvrnc, 7:F2}");
+            }
         }
 
         kradarPosList.Add(ke);
