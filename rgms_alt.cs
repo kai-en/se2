@@ -827,6 +827,7 @@ public IEnumerable<bool> MissileLaunchHandler()
             ThisMissile.CONN.Disconnect();
             yield return true;
         }
+        if (ThisMissile.markRemove) yield break;
 
         var MERGE_A = ThisMissile.MERGE;
         (MERGE_A as IMyShipMergeBlock).Enabled = false;
@@ -834,6 +835,7 @@ public IEnumerable<bool> MissileLaunchHandler()
         for (int k = 0; k < dropTime; k++) {
         	yield return true;
         }
+        if (ThisMissile.markRemove) yield break;
 
         foreach (IMyThrust thruster in ThisMissile.THRUSTERS)
         {
@@ -870,6 +872,7 @@ public IEnumerable<bool> MissileLaunchHandler()
         if (ThisMissile.LANDINGLIST.Count > 0)
         {
             for (int j = 0; j < 60; j++) yield return true;
+            if (ThisMissile.markRemove) yield break;
 
             foreach (IMyTerminalBlock land in ThisMissile.LANDINGLIST)
             {
@@ -1275,7 +1278,9 @@ This_Missile_Director.GetTargetedEntity().IsEmpty() == false)
     bool targetNear = false;
     if (This_Missile.IS_CLEAR && (TargetPosition - MissilePosition).Length() < 140) //Arms
     { foreach (var item in This_Missile.WARHEADS) { if (item is IMyWarhead) {(item as IMyWarhead).IsArmed = true;} else {item.ApplyAction("Arm");} } targetNear = true; }
-    bool targetGetFar = (TargetPosition - MissilePosition).LengthSquared() > (TargetPositionPrev - MissilePositionPrev).LengthSquared() && (TargetPosition - MissilePosition).LengthSquared() < 4 * 4;
+    var nowDis = (TargetPosition - MissilePosition).Length();
+    var prevDis = (TargetPositionPrev - MissilePositionPrev).Length();
+    bool targetGetFar = This_Missile.IS_CLEAR && nowDis < 10 && nowDis > prevDis;
     if (targetGetFar)
     {
         foreach (var item in This_Missile.WARHEADS) {
@@ -1286,6 +1291,11 @@ This_Missile_Director.GetTargetedEntity().IsEmpty() == false)
             } else {
                 if (isNearExplode) item.ApplyAction("Detonate");
             }
+        }
+        if (isNearExplode) {
+            This_Missile.markRemove = true;
+            detonateCount ++;
+            return;
         }
     }
     var stop = Vector3D.Dot(Vector3D.Normalize(MissileVelocity), Vector3D.Normalize(lastVelocity));

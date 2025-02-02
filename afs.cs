@@ -44,12 +44,11 @@ namespace kradar_p
       }
       
       if(arguments==null || arguments.Equals("")) {
-        debug("noargus");
         tickPlus();
       }
-      else debug("hasargus");
-      
+      debugShow();
       if (autoFollow && tickGet() % 15 != 0) return;
+      debugClear();
 
       // check ship
       checkShip();
@@ -90,8 +89,6 @@ namespace kradar_p
         // adjust thrust level 2
       }
 
-      debugShow();
-      debugClear();
     }
 
     #region tick
@@ -1053,12 +1050,16 @@ namespace kradar_p
 
       if (autoFollow && haveTarget && attackMode && !mainTarget.lost(tickGet())) {
         var tr = (shipPosition - mainTarget.estPosition(tickGet())).Length();
+        // 攻击模型 在射程边缘调整时不瞄准 在距离目标过近时 不瞄准
         if (fatnl) {
-          if (tr > axisBr * 0.6) fatnl = false;
+          // 解除调整模式条件
+          if (tr > axisBr * 0.5 && tr < axisBr * 0.81 ) fatnl = false;
         } else {
-          if (tr < 200) fatnl = true;
+          // 进入调整模式条件
+          if (tr < axisBr * 0.4 || tr > axisBr * 0.9) fatnl = true;
         }
-        haveTarget = tr > (fatnl ? axisBr * 0.6 : 200);
+        // haveTarget = tr > (fatnl ? axisBr * 0.5 : 200);
+        haveTarget = fatnl ? tr > axisBr * 0.5 && tr < axisBr * 0.7 : tr > axisBr * 0.4 && tr < axisBr * 0.9;
       }
       
       String aostr = cfg.Get(CFG_GENERAL, "AIM_OFFSET").ToString();
