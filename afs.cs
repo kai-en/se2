@@ -970,12 +970,19 @@ namespace kradar_p
         }
       } else if (!autoFollow && mainShipCtrl.DampenersOverride && shipThrusts[0][T_BACK].Count == 0) {
         // TODO have back thrust also use this?
-        var needD = DeadZone(-shipVelLocalGet(), 0.1);
+        var needDT = -shipVelLocalGet();
+        var needD = DeadZone(needDT, 0.1);
         if (needD.Length() > 0) {
-          SetGyroYaw( modAngle(Math.Atan2(needD.Z, needD.X) + Math.PI * 0.5) * 0.4 * GYRO_RATE);
-          needRYP[1] = true;
-          SetGyroPitch(modAngle(Math.Atan2(needD.Z, needD.Y) + Math.PI * 0.5) * 0.3 * GYRO_RATE);
-          needRYP[2] = true;
+          var ndtl = needDT.Length();
+          // 转向精度和要求速度成正比
+          var dotPre = (ndtl + 1.0) / (ndtl + 2.0);
+          var readDot = Vector3D.Dot(new Vector3D(0,0,-1), Vector3D.Normalize(needDT));
+          if (readDot < dotPre) {
+            SetGyroYaw( modAngle(Math.Atan2(needDT.Z, needDT.X) + Math.PI * 0.5) * 0.4 * GYRO_RATE);
+            needRYP[1] = true;
+            SetGyroPitch(modAngle(Math.Atan2(needDT.Z, needDT.Y) + Math.PI * 0.5) * 0.3 * GYRO_RATE);
+            needRYP[2] = true;
+          }
         }
       } else if (autoFollow) {
         var needD = naL1BackLocal;
